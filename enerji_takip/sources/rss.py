@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from datetime import date
 from email.utils import parsedate_to_datetime
+from urllib.parse import urljoin
 
 from defusedxml import ElementTree as SafeET
 
@@ -22,7 +23,12 @@ def _local(tag: str) -> str:
     return tag.rsplit("}", 1)[-1].lower()
 
 
-def parse_feed(xml_text: str) -> list[dict]:
+_URL = re.compile(r"^https?://", re.I)
+
+
+def parse_feed(xml_text: str, *, base_url: str = "") -> list[dict]:
+    """Akıştaki kayıtları döndürür. Bağlantı sırasıyla <link>, <guid> (URL ise), <enclosure>, <comments> ve
+    <id> etiketlerinden alınır; göreli bağlantılar base_url ile tamamlanır."""
     try:
         root = SafeET.fromstring(xml_text.encode("utf-8") if isinstance(xml_text, str) else xml_text)
     except Exception as exc:  # defusedxml de ParseError fırlatır
@@ -32,19 +38,41 @@ def parse_feed(xml_text: str) -> list[dict]:
         if _local(node.tag) not in ("item", "entry"):
             continue
         entry: dict = {}
+        links: dict[str, str] = {}
         for child in node:
             name = _local(child.tag)
             if name == "title":
                 entry["title"] = normalize_space("".join(child.itertext()))
-            elif name == "link":
-                entry["link"] = (child.get("href") or (child.text or "")).strip()
+            elif name in ("link", "guid", "id", "comments", "enclosure", "url"):
+                value = (child.get("href") or child.get("url") or (child.text or "")).strip()
+                if value and name not in links:
+                    links[name] = value
             elif name in ("pubdate", "published", "updated", "date"):
                 entry["date"] = (child.text or "").strip()
             elif name in ("description", "summary"):
                 entry["summary"] = normalize_space(re.sub(r"<[^>]+>", " ", "".join(child.itertext())))[:500]
+        for name in ("link", "guid", "id", "enclosure", "url", "comments"):
+            value = links.get(name)
+            if value and (_URL.match(value) or (base_url and value.startswith("/"))):
+                entry["link"] = urljoin(base_url, value) if base_url else value
+                break
         if entry.get("title") and entry.get("link"):
             items.append(entry)
     return items
+
+
+def describe_feed(xml_text: str) -> str:
+    """Kayıt bulunamadığında nedenini anlatan kısa tanı: kaç <item> var, ilkinin etiketleri neler."""
+    try:
+        root = SafeET.fromstring(xml_text.encode("utf-8") if isinstance(xml_text, str) else xml_text)
+    except Exception:
+        return "XML değil"
+    nodes = [n for n in root.iter() if _local(n.tag) in ("item", "entry")]
+    if not nodes:
+        return "akışta <item>/<entry> yok"
+    first = nodes[0]
+    tags = ", ".join(f"{_local(c.tag)}={(c.text or c.get('href') or '')[:40]!r}" for c in list(first)[:8])
+    return f"{len(nodes)} kayıt var ama başlık+bağlantı yok; ilk kaydın etiketleri: {tags}"
 
 
 def _parse_date(value: str | None) -> date | None:
@@ -71,12 +99,12 @@ class RssAdapter(HtmlListingAdapter):
         for feed_url in self.config.get("feed_urls") or []:
             try:
                 result = fetcher.get(feed_url)
-                entries = parse_feed(result.text or result.content.decode("utf-8", "replace"))
+                raw = result.text or result.content.decode("utf-8", "replace")
+                entries = parse_feed(raw, base_url=feed_url)
                 if not entries:
-                    snippet = " ".join((result.text or "")[:160].split())
                     raise ParseError(
                         f"Akışta kayıt bulunamadı ({feed_url}) [HTTP {result.status_code}, {result.content_type or '?'}, "
-                        f"{len(result.content)} bayt, başlangıç: {snippet!r}]")
+                        f"{len(result.content)} bayt; {describe_feed(raw)}]")
             except RobotsDisallowed as exc:
                 outcome.access_status = "robots_engeli"
                 outcome.complete = False
