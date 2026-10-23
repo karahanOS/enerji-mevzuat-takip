@@ -1,0 +1,119 @@
+{% if report_type == 'kritik' %}KRİTİK ENERJİ MEVZUATI BİLDİRİMİ{% else %}GÜNLÜK ENERJİ MEVZUATI RAPORU{% endif %}
+
+
+Rapor tarihi: {{ report_date }}
+Tarama dönemi: {{ period_start }} – {{ period_end }}
+Tespit edilen yeni düzenleme: {{ total }}{% if routine_count %} (+ {{ routine_count }} rutin kurul kararı){% endif %}
+
+Kritik / Yüksek: {{ critical }} / {{ high }}
+Orta / Düşük: {{ medium }} / {{ low }}{% if review_count %} · Kontrol gereken: {{ review_count }}{% endif %}
+
+
+{% if not is_complete %}
+!!! TARAMA EKSİK TAMAMLANDI. Aşağıdaki kaynak/günler kontrol edilemedi; bu raporda yer almayan değişiklikler olabilir.
+{% for w in warnings %}  - {{ w }}
+{% endfor %}
+{% elif warnings %}
+Notlar:
+{% for w in warnings %}  - {{ w }}
+{% endfor %}
+{% endif %}
+{% if total == 0 and routine_count == 0 %}
+{% if is_complete %}Bu tarama döneminde enerji sektörüyle ilgili yeni bir düzenleme tespit edilmedi.{% else %}Taranabilen kaynaklarda yeni düzenleme bulunmadı; tarama eksik olduğundan bu sonuç kesin değildir.{% endif %}
+
+Taranan belge: {{ docs_scanned }} · İlgisiz bulunan: {{ docs_filtered }} · Analiz dışı: {{ docs_skipped }}
+{% endif %}
+{% for it in items %}
+
+------------------------------------------------------------------------
+{{ it.n }}. {{ it.title }}
+------------------------------------------------------------------------
+Mevzuatın türü: {{ it.doc_type }} — {{ it.change_type }}{% if it.institution %} ({{ it.institution }}){% endif %}
+
+Resmî Gazete tarihi ve sayısı: {{ it.rg or 'Resmî Gazete dışı kaynak (' ~ it.source_name ~ ')' }}
+Yayımlanma tarihi: {{ it.published }}
+Yürürlük tarihi: {{ it.effective | join('; ') }}{{ it.effective_note }}
+{% if it.aspects %}Değişikliğin niteliği: {{ it.aspects | join(', ') }}
+{% endif %}
+Önem seviyesi: {{ it.importance }}{% if it.needs_review %} (KONTROL ET){% endif %}
+
+İlgili alanlar: {{ it.areas | join(', ') }}
+{% if it.market_items %}Etkilenen piyasa unsurları: {{ it.market_items | join(', ') }}
+{% endif %}
+{% if it.who %}Kimler etkilenir: {{ it.who | join(', ') }}
+{% endif %}
+{% if it.amended %}Değiştirilen mevzuat: {{ it.amended }}{% if it.amended_ref %} ({{ it.amended_ref }}){% endif %}
+
+{% endif %}
+{% if it.articles %}İlgili maddeler: {{ it.articles | join('; ') }}
+{% endif %}
+
+Değişikliğin özeti
+{{ it.summary }}
+
+Piyasaya etkisi ({{ it.impact_level }})
+{{ it.impact }}
+{% if it.personal %}
+
+Benim açımdan önemi
+{{ it.personal }}
+{% endif %}
+{% if it.provisions %}
+
+Mevzuatta açıkça yer alan hükümler
+{% for p in it.provisions %}  - {{ p.hukum }}{% if p.madde %} [{{ p.madde }}]{% endif %}{% if p.alinti %}
+
+    “{{ p.alinti }}”{% endif %}
+
+{% endfor %}
+{% endif %}
+{% if it.inferences %}
+
+Yapay zekâ çıkarımları (mevzuatta açıkça yazmaz; yorumdur)
+{% for x in it.inferences %}  - {{ x }}
+{% endfor %}
+{% endif %}
+
+Takip önerileri
+{% for a in it.actions %}  - {{ a }}
+{% endfor %}
+
+Uyum / geçiş tarihleri
+{% if it.compliance %}{% for c in it.compliance %}  - {{ c }}
+{% endfor %}{% else %}  Ayrı bir uyum süresi tespit edilmedi; yürürlük tarihi esas alınmalıdır.
+{% endif %}
+
+Resmî kaynak
+  {{ it.url }}{% if not it.url_verified %} (bağlantı içeriği doğrulanamadı){% endif %}
+
+{% if it.pdf_url %}  PDF: {{ it.pdf_url }}
+{% endif %}
+{% if it.needs_review %}
+
+Neden kontrol etmelisin:
+{% for r in it.review_reasons %}  - {{ r }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% if routine %}
+
+
+RUTİN KURUL KARARLARI ({{ routine|length }}) — tek şirkete/tesise özgü
+{% for r in routine %}  - {{ r.title }} ({{ r.rg }})
+{% if r.gist %}    {{ r.gist }}
+{% endif %}
+    {{ r.url }}
+{% endfor %}
+{% endif %}
+{% if sources %}
+
+KAYNAK DURUMU
+{% for s in sources %}  - {{ s.name }}: {{ s.status }} (son başarılı: {{ s.last_success }}){% if s.detail %} — {{ s.detail }}{% endif %}
+
+{% endfor %}
+Taranan belge: {{ docs_scanned }} · İlgisiz bulunan: {{ docs_filtered }} · Analiz dışı: {{ docs_skipped }}{% if ai_usage %} · Bugünkü AI çağrısı: {{ ai_usage }}{% endif %}
+
+{% endif %}
+
+--
+{{ disclaimer }}

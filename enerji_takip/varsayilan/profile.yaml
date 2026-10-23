@@ -1,0 +1,33 @@
+# Kullanıcı profili
+# ------------------------------------------------------------------
+# Yapay zekâ "bu düzenleme benim için neden önemli?" sorusunu bu profile göre
+# yanıtlar. Kendi ilgi alanınıza göre düzenleyin:
+#   enerji-takip init-config   → config/profile.yaml olarak kopyalanır
+
+aciklama: >
+  Türkiye elektrik ve enerji piyasalarını takip eden bir kullanıcı. Piyasa kurallarındaki
+  değişiklikleri, bunların fiyat oluşumuna (PTF, SMF, GİP), yenilenebilir enerji desteklerine
+  ve EPİAŞ Şeffaflık Platformu'nda yayımlanan verilere etkisini merak ediyor.
+
+takip_konulari:
+  - Gün öncesi ve gün içi piyasası kuralları, fiyat limitleri (azami/asgari uzlaştırma fiyatı)
+  - Dengeleme güç piyasası, SMF ve dengesizlik uzlaştırması
+  - YEKDEM, YEKA, lisanssız üretim, YEK-G ve yenilenebilir enerji destekleri
+  - Tarifeler (iletim, dağıtım, son kaynak tedarik), serbest tüketici limiti
+  - Kapasite mekanizması, yan hizmetler, depolama ve şarj hizmetleri
+  - EPİAŞ Şeffaflık Platformu'nda yayımlanan verilerin kapsamı ve biçimi
+  - Doğal gaz piyasası, karbon piyasası / emisyon ticaret sistemi, enerji verimliliği
+
+ilgi_alanlari:
+  - Elektrik piyasası işleyişi
+  - Fiyatlar ve uzlaştırma
+  - Yenilenebilir enerji ve YEKDEM
+  - Tarifeler ve şebeke
+  - Lisanslama ve yatırım
+  - Piyasa verileri ve şeffaflık
+  - Doğal gaz piyasası
+  - Petrol ve LPG piyasası
+  - Karbon ve iklim
+  - Enerji verimliliği
+  - Nükleer enerji
+  - Akademik / araştırma

@@ -1,0 +1,16 @@
+ENERJİ MEVZUAT TAKİBİ — SİSTEM BİLDİRİMİ
+
+{{ title }}
+
+{% for line in lines %}- {{ line }}
+{% endfor %}
+{% if details %}
+
+Ayrıntılar:
+{% for k, v in details.items() %}  {{ k }}: {{ v }}
+{% endfor %}
+{% endif %}
+
+Bu bildirim otomatik olarak gönderilmiştir. Kayıtlar: veri tabanındaki monitoring_logs ve scan_runs tabloları,
+ayrıca data/loglar/enerji_takip.log (GitHub Actions: iş akışı günlüğü ve "veri" dalı). Eksik dönem, sorun giderildikten sonraki ilk çalıştırmada otomatik
+olarak yeniden taranır.

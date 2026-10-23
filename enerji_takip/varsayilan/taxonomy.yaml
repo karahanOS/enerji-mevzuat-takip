@@ -1,0 +1,264 @@
+# Enerji mevzuatı ilgililik taksonomisi
+# ------------------------------------------------------------------
+# Eşleştirme Türkçe küçük harfe çevrilmiş metin üzerinde, kelime başından
+# itibaren KÖK eşleşmesiyle yapılır: "dengeleme" kökü dengelemenin, dengelemeye...
+# Başında "=" olan kökler TAM KELİME eşleşir ("=ptf" → "ptf" evet, "ptfx" hayır).
+# core: true  → ana ilgi alanı; önem puanına +1 ekler.
+# weak: true  → başlıkta tek başına "ilgili" saydırmaz, metin kontrolüne yönlendirir.
+
+categories:
+  elektrik_piyasasi:
+    label: Elektrik piyasası
+    core: true
+    stems:
+      - elektrik piyasa
+      - elektrik enerjisi
+      - elektrik üretim
+      - elektrik dağıtım
+      - elektrik iletim
+      - elektrik tedarik
+      - dengeleme
+      - uzlaştırma
+      - gün öncesi piyasa
+      - gün içi piyasa
+      - vadeli elektrik
+      - "=ptf"
+      - "=smf"
+      - "=gip"
+      - "=göp"
+      - "=yal"
+      - "=yat"
+      - piyasa takas fiyat
+      - sistem marjinal fiyat
+      - azami uzlaştırma
+      - azami fiyat limit
+      - asgari fiyat limit
+      - ikili anlaşma
+      - serbest tüketici
+      - son kaynak tedarik
+      - görevli tedarik
+      - kapasite mekanizma
+      - yan hizmet
+      - frekans kontrol
+      - talep tarafı katılım
+      - piyasa işletim
+      - piyasa katılımcı
+      - organize toptan
+      - enerji piyasaları işletme
+      - "=epiaş"
+      - "=teiaş"
+      - "=euaş"
+      - türkiye elektrik iletim
+      - iletim sistemi
+      - dağıtım sistemi
+      - şebeke
+      - sayaç
+      - kayıp kaçak
+      - elektrik depolama
+      - depolama tesis
+      - şarj hizmet
+      - şarj istasyon
+      - dağıtım bedel
+      - iletim tarife
+      - tarife tablo
+      - perakende satış
+      - genel aydınlatma
+      - elektrik enerjisi fon
+    law_numbers: ["6446", "4628", "6719"]
+
+  yenilenebilir:
+    label: Yenilenebilir enerji ve YEKDEM
+    core: true
+    stems:
+      - yenilenebilir enerji
+      - "=yekdem"
+      - "=yeka"
+      - "=yek-g"
+      - yek destekleme
+      - yenilenebilir enerji kaynak
+      - lisanssız elektrik üretim
+      - lisanssız üretim
+      - mahsuplaşma
+      - güneş enerji
+      - rüzgâr enerji
+      - rüzgar enerji
+      - jeotermal
+      - hidroelektrik
+      - biyokütle
+      - "=ges"
+      - "=res"
+      - "=hes"
+      - hibrit
+      - yerli aksam
+      - yenilenebilir enerji kaynak garanti
+    law_numbers: ["5346"]
+
+  dogalgaz:
+    label: Doğal gaz piyasası
+    stems:
+      - doğal gaz piyasa
+      - doğal gaz
+      - doğalgaz
+      - "=botaş"
+      - "=lng"
+      - spot doğal gaz
+      - şebeke işleyiş
+      - iletim şebeke
+      - yer altı depolama
+    law_numbers: ["4646"]
+
+  petrol_lpg:
+    label: Petrol ve LPG piyasası
+    stems:
+      - petrol piyasa
+      - sıvılaştırılmış petrol gaz
+      - "=lpg"
+      - akaryakıt
+      - motorin
+      - ulusal marker
+      - rafineri
+      - hidrokarbon
+    law_numbers: ["5015", "5307", "7554"]
+
+  karbon_iklim:
+    label: Karbon ve iklim
+    stems:
+      - emisyon ticaret
+      - karbon piyasa
+      - karbon fiyat
+      - sera gaz
+      - iklim kanun
+      - iklim değişikliğ
+      - sınırda karbon
+      - "=skdm"
+      - "=ets"
+      - karbon kredi
+      - net sıfır
+    law_numbers: ["7552"]
+
+  verimlilik:
+    label: Enerji verimliliği
+    stems:
+      - enerji verimliliğ
+      - enerji yöneticisi
+      - enerji etüdü
+      - enerji kimlik belge
+      - verimlilik artırıcı proje
+    law_numbers: ["5627"]
+
+  nukleer:
+    label: Nükleer enerji
+    stems:
+      - nükleer
+      - nükleer düzenleme kurum
+      - radyasyon güvenliğ
+      - akkuyu
+    law_numbers: ["7381"]
+
+  enerji_genel:
+    label: Enerji (genel)
+    stems:
+      - enerji piyasası düzenleme kurul
+      - enerji piyasası düzenleme kurum
+      - enerji ve tabii kaynaklar
+      - enerji piyasa
+      - enerji yatırım
+      - önlisans
+      - üretim lisans
+      - tedarik lisans
+    law_numbers: ["3154"]
+
+  zayif_sinyaller:
+    label: Genel (zayıf sinyal)
+    weak: true
+    stems:
+      - enerji
+      - elektrik
+      - lisans
+      - tarife
+      - tesis
+
+# Başlıkta geçerse, başlıkta başka bir olumlu kök yoksa belge ilgisiz sayılır.
+negative_title_patterns:
+  - üniversitesi
+  - yükseköğretim
+  - lisansüstü
+  - önlisans ve lisans eğitim
+  - eğitim-öğretim
+  - öğrenci
+  - atama karar
+  - kamulaştır
+  - imar plan
+  - ilaç
+  - tıbbi cihaz
+  - veteriner
+  - sınav yönetmeliğ
+  - görevde yükselme
+  - personel alım
+  - vakıf
+  - müze
+  - spor
+  - noterlik
+  - diyanet
+  - karayolu taşıma
+  - gümrük
+
+# Bu bölümlerdeki belgeler analiz edilmez (yalnızca kayıt altına alınır)
+skip_sections:
+  - ILAN
+
+# Bu belge türleri başlıkta eşleşme yoksa metin taramasına alınır
+text_check_doc_types:
+  - KANUN
+  - CB_KARARNAMESI
+  - CB_KARARI
+  - GENELGE
+  - KURUL_KARARI
+  - AYM_KARARI
+  - YONETMELIK
+  - TEBLIG
+  - KARAR
+  - ANDLASMA
+
+# Metin taramasında "ilgili" sayılmak için gereken asgari farklı kök sayısı
+text_min_distinct_hits: 3
+
+# Rutin karar ayrımı: tek şirkete/tesise özgü kurul kararları AI kotası harcanmadan
+# "rutin" bölümünde listelenir. Piyasa geneli göstergeleri varsa rutin sayılmaz.
+routine:
+  doc_types: [KURUL_KARARI, KARAR]
+  max_chars: 6000
+  company_markers:
+    - "a.ş."
+    - anonim şirket
+    - "ltd. şti"
+    - limited şirket
+  patterns:
+    - lisansının tadil
+    - lisans tadil
+    - lisansının sona erdiril
+    - lisansının iptal
+    - lisans süresinin uzatıl
+    - süresinin uzatılmasına
+    - önlisans
+    - lisans verilmesine
+    - unvan değişikliğ
+    - pay devri
+    - hisse devri
+    - kapasite artış
+    - tesis tamamlanma süre
+    - idari para cezası verilmesine
+    - üretim lisans
+  market_wide_markers:
+    - tüm piyasa katılımcı
+    - usul ve esas
+    - yönetmeliğ
+    - tarife tablo
+    - azami uzlaştırma
+    - fiyat limit
+    - "=yekdem"
+    - yöntem
+    - metodoloji
+    - bedellerinin
+    - tüm dağıtım şirket
+    - genel aydınlatma

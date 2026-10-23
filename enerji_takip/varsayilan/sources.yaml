@@ -1,0 +1,138 @@
+# Enerji mevzuatı kaynakları
+# ------------------------------------------------------------------
+# Yeni kaynak eklemek için bir kayıt ekleyin. Çalışma durumu (son başarılı
+# kontrol, hata, erişilebilirlik) veri tabanında tutulur.
+#
+# method:
+#   rg_fihrist    Resmî Gazete günlük fihrist sayfaları
+#   html_listing  Kurum duyuru listesi; yeni bağlantılar yeni kayıt sayılır
+#   rss           RSS/Atom akışı
+#
+# Doğrulama notu (23.10.2026): Liste adresleri ve bağlantı kalıpları sitelerin o
+# tarihteki sayfalarından doğrulandı. Kendi bağlantınızdan kontrol için:
+#   enerji-takip check-sources --all
+
+sources:
+  - key: resmi_gazete
+    name: Resmî Gazete
+    url: https://www.resmigazete.gov.tr/
+    category: Birincil kaynak
+    method: rg_fihrist
+    primary: true
+    notes: >
+      Kanun, CB kararı, yönetmelik, tebliğ ve EPDK kurul kararlarının birincil yayın yeri.
+      RSS/API yok; fihrist + belge HTML/PDF'leri taranır.
+
+  - key: epdk_duyurular
+    name: EPDK – Duyurular
+    url: https://www.epdk.gov.tr/Detay/Icerik/4-0-1/duyurular
+    category: Düzenleyici kurum
+    method: html_listing
+    config:
+      list_urls: [https://www.epdk.gov.tr/Detay/Icerik/4-0-1/duyurular]
+      item_link_pattern: 'epdk\.gov\.tr/Detay/Icerik/4-\d+/'
+      exclude_title_pattern: 'Personel Alım|Sınav|Aylık İstatistik|Sektör Rapor'
+      doc_type: DUYURU
+      institution: Enerji Piyasası Düzenleme Kurumu
+
+  - key: epias_elektrik_duyurulari
+    name: EPİAŞ – Elektrik Piyasası Duyuruları
+    url: https://www.epias.com.tr/spot-elektrik-piyasasi/elektrik-piyasasi-duyurulari
+    category: Piyasa işletmecisi
+    method: html_listing
+    notes: Aylık uzlaştırma bildirimleri, planlı bakım ve teminat takvimi gibi rutin duyurular hariç tutulur.
+    config:
+      list_urls: [https://www.epias.com.tr/spot-elektrik-piyasasi/elektrik-piyasasi-duyurulari]
+      item_link_pattern: 'epias\.com\.tr/(tum-duyurular|genel)/.+'
+      exclude_title_pattern: 'Uzlaştırma Bildirimi|Planlı Bakım|Bakım Çalışması|Serbest Tüketici Hareketleri|Teminat Hesaplamaları|Organize YEK-G Piyasası$|Eğitim|Personel'
+      doc_type: DUYURU
+      institution: Enerji Piyasaları İşletme A.Ş.
+
+  - key: epias_dogalgaz_duyurulari
+    name: EPİAŞ – Doğal Gaz Piyasası Duyuruları
+    url: https://www.epias.com.tr/spot-dogal-gaz-piyasasi/dogal-gaz-piyasasi-duyurulari
+    category: Piyasa işletmecisi
+    method: html_listing
+    enabled: false
+    status_if_disabled: dogrulanmadi
+    notes: Adres EPİAŞ menüsünden doğrulandı; liste yapısı elektrik sayfasıyla aynı varsayıldı. check-sources --all ile ✔ görürseniz etkinleştirin.
+    config:
+      list_urls: [https://www.epias.com.tr/spot-dogal-gaz-piyasasi/dogal-gaz-piyasasi-duyurulari]
+      item_link_pattern: 'epias\.com\.tr/(tum-duyurular|genel)/.+'
+      exclude_title_pattern: 'Uzlaştırma Bildirimi|Planlı Bakım|Bakım Çalışması|Teminat Hesaplamaları|Eğitim|Personel'
+      doc_type: DUYURU
+      institution: Enerji Piyasaları İşletme A.Ş.
+
+  - key: epias_cevresel_duyurulari
+    name: EPİAŞ – Çevresel Piyasalar (YEK-G, karbon) Duyuruları
+    url: https://www.epias.com.tr/cevresel-piyasalar/cevresel-piyasa-duyurulari
+    category: Piyasa işletmecisi
+    method: html_listing
+    enabled: false
+    status_if_disabled: dogrulanmadi
+    notes: Adres EPİAŞ menüsünden doğrulandı; liste yapısı doğrulanmadı. check-sources --all ile kontrol edip etkinleştirin.
+    config:
+      list_urls: [https://www.epias.com.tr/cevresel-piyasalar/cevresel-piyasa-duyurulari]
+      item_link_pattern: 'epias\.com\.tr/(tum-duyurular|genel)/.+'
+      exclude_title_pattern: 'Organize YEK-G Piyasası$|Planlı Bakım|Eğitim|Personel'
+      doc_type: DUYURU
+      institution: Enerji Piyasaları İşletme A.Ş.
+
+  - key: etkb_duyurular
+    name: Enerji ve Tabii Kaynaklar Bakanlığı – Duyurular
+    url: https://enerji.gov.tr/medya-duyurular-liste
+    category: Bakanlık
+    method: html_listing
+    notes: Tek tek santral imar planı duyuruları hariç tutulur; YEKA ve lisanssız üretim duyuruları kalır.
+    config:
+      list_urls: [https://enerji.gov.tr/medya-duyurular-liste]
+      item_link_pattern: 'enerji\.gov\.tr/duyuru-detay\?id=\d+'
+      exclude_title_pattern: 'İmar Planı|Personel|Sınav'
+      title_min_length: 8
+      doc_type: DUYURU
+      institution: Enerji ve Tabii Kaynaklar Bakanlığı
+
+  - key: etkb_mevzuat_rss
+    name: ETKB – Mevzuat RSS akışı
+    url: https://enerji.gov.tr/RSS/15?t=1
+    category: Bakanlık
+    method: rss
+    notes: >
+      enerji.gov.tr/rss sayfasında "Duyurular" adıyla listelenen akış (23.10.2026'da içerik olarak mevzuat
+      kayıtları döndürüyordu). Kayıtlarda tarih yok; yeni bağlantılar yeni kayıt sayılır.
+    config:
+      feed_urls: ['https://enerji.gov.tr/RSS/15?t=1']
+      doc_type: DUYURU
+      institution: Enerji ve Tabii Kaynaklar Bakanlığı
+
+  - key: teias_duyurular
+    name: TEİAŞ – Duyurular
+    url: https://www.teias.gov.tr/duyurular
+    category: İletim sistemi işletmecisi
+    method: html_listing
+    notes: Kapasite mekanizması, yan hizmetler, lisanssız kapasite tahsisleri gibi duyurular.
+    config:
+      list_urls: [https://www.teias.gov.tr/duyurular]
+      item_link_pattern: 'teias\.gov\.tr/duyurular/[a-z0-9-]+$'
+      exclude_title_pattern: 'Personel|İşçi|Sınav|Mülakat|Atama|Kura'
+      doc_type: DUYURU
+      institution: Türkiye Elektrik İletim A.Ş.
+
+  # ---- Otomatik izlenemeyen kaynaklar (kayıt amaçlı) ----
+  - key: epdk_elektrik_kurul_kararlari
+    name: EPDK – Elektrik Piyasası Kurul Kararları listesi
+    url: https://www.epdk.gov.tr/Detay/Icerik/3-0-39-3/son-kurul-kararlari/elektrik
+    category: Düzenleyici kurum
+    method: html_listing
+    enabled: false
+    status_if_disabled: javascript_gerekli
+    notes: Karar tablosu JavaScript ile dolduruluyor. Resmî Gazete'de yayımlanan EPDK kurul kararları zaten izleniyor.
+
+  - key: mevzuat_bilgi_sistemi
+    name: Mevzuat Bilgi Sistemi
+    url: https://www.mevzuat.gov.tr/
+    category: Konsolide metinler
+    method: html_listing
+    enabled: false
+    status_if_disabled: javascript_gerekli
+    notes: İçerik JavaScript ile yükleniyor; belgelenmiş API/RSS yok.
