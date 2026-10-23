@@ -34,6 +34,17 @@ def norm_enum(value) -> str:
 EvetHayir = Literal["evet", "hayir", "belirsiz"]
 
 
+def _text(value):
+    """Modeller 'madde' gibi alanlara null ya da sayı (ör. 5) verebilir; metne çevirir."""
+    if value is None:
+        return ""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return str(value)
+    if isinstance(value, list):
+        return ", ".join(str(x) for x in value if x is not None)
+    return value
+
+
 def _norm_ehb(value):
     if isinstance(value, bool):
         return "evet" if value else "hayir"
@@ -46,11 +57,21 @@ class Provision(BaseModel):
     madde: str = Field(default="", description="İlgili madde/fıkra")
     alinti: str = Field(default="", description="Metinden BİREBİR kısa alıntı (en fazla ~30 kelime)")
 
+    @field_validator("madde", "alinti", mode="before")
+    @classmethod
+    def _t(cls, v):
+        return _text(v)
+
 
 class Flagged(BaseModel):
     var_mi: EvetHayir
     aciklama: str = ""
     madde: str = ""
+
+    @field_validator("aciklama", "madde", mode="before")
+    @classmethod
+    def _t(cls, v):
+        return _text(v)
 
     @field_validator("var_mi", mode="before")
     @classmethod
