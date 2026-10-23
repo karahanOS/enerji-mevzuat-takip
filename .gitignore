@@ -1,0 +1,17 @@
+# Sırlar ve yerel veri — asla commit etmeyin
+.env
+data/
+veri/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+build/
+dist/
+*.egg-info/
+
+# Not: config/ klasörü (init-config ile oluşan kişisel ayarlar) bilerek hariç tutulmadı:
+# GitHub Actions kullanan ÖZEL deponuzda commit edilmesi gerekir. Herkese açık bir
+# çatalda (fork) kişisel profilinizi paylaşmak istemiyorsanız buraya "config/" ekleyin.

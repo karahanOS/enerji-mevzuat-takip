@@ -1,0 +1,6 @@
+-r requirements.txt
+pytest>=8.0
+respx>=0.21
+aiosmtpd>=1.4
+reportlab>=4.0
+mcp>=2,<3                 # MCP sunucusu testleri için

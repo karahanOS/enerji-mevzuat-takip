@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "enerji-mevzuat-takip"
+dynamic = ["version"]
+description = "Türkiye enerji ve elektrik piyasası mevzuatını Resmî Gazete, EPDK, EPİAŞ, ETKB ve TEİAŞ'tan takip eden açık kaynak araç: günlük e-posta + MCP sunucusu."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+authors = [{ name = "Karahan" }]
+keywords = ["resmi gazete", "epdk", "epias", "elektrik piyasası", "mevzuat", "mcp", "turkey", "energy regulation"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Natural Language :: Turkish",
+    "Topic :: Office/Business",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "httpx>=0.27,<1",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "defusedxml>=0.7",
+    "SQLAlchemy>=2.0,<3",
+    "pydantic>=2.6,<3",
+    "python-dotenv>=1.0",
+    "PyYAML>=6.0",
+    "Jinja2>=3.1",
+    "APScheduler>=3.10,<4",
+    "pypdf>=4.0",
+    "python-dateutil>=2.9",
+    "tzdata>=2024.1",
+]
+
+[project.optional-dependencies]
+mcp = ["mcp>=2,<3"]
+dev = ["pytest>=8.0", "respx>=0.21", "aiosmtpd>=1.4", "reportlab>=4.0", "mcp>=2,<3"]
+
+[project.scripts]
+enerji-takip = "enerji_takip.__main__:main"
+enerji-mevzuat-mcp = "enerji_takip.mcp_server:main"
+
+[project.urls]
+Homepage = "https://github.com/karahanOS/enerji-mevzuat-takip"
+Issues = "https://github.com/karahanOS/enerji-mevzuat-takip/issues"
+
+[tool.setuptools.dynamic]
+version = { attr = "enerji_takip.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["enerji_takip*"]
+
+[tool.setuptools.package-data]
+enerji_takip = ["varsayilan/*.yaml", "varsayilan/env.example", "reporting/templates/*.j2"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
