@@ -73,7 +73,10 @@ class RssAdapter(HtmlListingAdapter):
                 result = fetcher.get(feed_url)
                 entries = parse_feed(result.text or result.content.decode("utf-8", "replace"))
                 if not entries:
-                    raise ParseError(f"Akışta kayıt bulunamadı ({feed_url})")
+                    snippet = " ".join((result.text or "")[:160].split())
+                    raise ParseError(
+                        f"Akışta kayıt bulunamadı ({feed_url}) [HTTP {result.status_code}, {result.content_type or '?'}, "
+                        f"{len(result.content)} bayt, başlangıç: {snippet!r}]")
             except RobotsDisallowed as exc:
                 outcome.access_status = "robots_engeli"
                 outcome.complete = False
