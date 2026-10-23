@@ -1,3 +1,4 @@
+# Her push ve pull request'te testleri çalıştırır (ağa çıkmaz; kaynaklar test verisiyle taklit edilir).
 name: Testler
 
 on:
@@ -32,3 +33,4 @@ jobs:
           python -m build
           pip install "dist/$(ls dist | grep whl)[mcp]"
           cd /tmp && enerji-takip --help >/dev/null && python -c "import enerji_takip.mcp_server"
+
