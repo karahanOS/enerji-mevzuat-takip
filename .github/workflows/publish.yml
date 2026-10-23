@@ -1,0 +1,38 @@
+# GitHub'da bir "Release" yayımlandığında paketi PyPI'ye yükler (Trusted Publishing; şifre/secret gerekmez).
+# Bir kez kurulum: pypi.org → Your projects → Publishing → "Add a new pending publisher":
+#   proje adı: enerji-mevzuat-takip · sahip/depo: <github kullanıcı adınız>/enerji-mevzuat-takip
+#   iş akışı: publish.yml · ortam (environment): pypi
+name: PyPI yayımı
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build && python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
