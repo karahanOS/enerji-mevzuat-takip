@@ -78,3 +78,23 @@ def test_sistemde_turkce_varsa_indirmez(monkeypatch):
     monkeypatch.setattr(ocr, "_installed_langs", lambda extra=None: {"eng", "tur"})
     monkeypatch.setattr(ocr, "_fetch_tur", lambda dest: (_ for _ in ()).throw(AssertionError("indirilmemeli")))
     assert ocr._tesseract_setup() == ("tur+eng", [])
+
+
+def test_subprocess_cikti_utf8_cozulur_yerel_kod_sayfasina_bagli_degil(monkeypatch):
+    """Windows'ta text=True cp1252 ile okur; Tesseract UTF-8 verir. encoding açıkça utf-8 olmalı."""
+    import subprocess
+
+    seen = []
+
+    def fake_run(cmd, **kw):
+        seen.append((cmd[0], kw.get("encoding"), kw.get("text")))
+        if cmd[0] == "pdftoppm":
+            from pathlib import Path
+            Path(cmd[-1] + "-1.png").write_bytes(b"x")
+        return subprocess.CompletedProcess(cmd, 0, stdout="Şişli İğdır çalışma\n", stderr="")
+
+    monkeypatch.setattr(ocr.shutil, "which", lambda n: "/bin/" + n)
+    monkeypatch.setattr(ocr.subprocess, "run", fake_run)
+    out = ocr.ocr_pdf(b"%PDF")
+    assert "Şişli" in out
+    assert all(enc == "utf-8" and not text for name, enc, text in seen if name == "tesseract")
