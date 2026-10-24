@@ -19,6 +19,15 @@ from datetime import date, timedelta
 from .config import get_settings
 
 
+def _utf8_console() -> None:
+    """Windows konsolu (cp1252/cp1254) Türkçe karakterlerde çökmesin: çıktıyı UTF-8'e çevir, yazılamayanı değiştir."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def _print(msg: str = "") -> None:
     print(msg, flush=True)
 
@@ -189,6 +198,17 @@ def cmd_run(args) -> int:
     from .sources.registry import sync_sources
     from sqlalchemy import select
 
+    if args.kilidi_kaldir:
+        from .models import ScanRun, utcnow
+
+        init_db()
+        with session_scope() as s:
+            stuck = s.scalars(select(ScanRun).where(ScanRun.status == "calisiyor")).all()
+            for r in stuck:
+                r.status = "yarida_kaldi"
+                r.finished_at = utcnow()
+                r.errors = list(r.errors or []) + ["Elle sonlandırıldı (--kilidi-kaldir)"]
+        _print(f"{len(stuck)} yarım kalmış çalıştırma kaydı kapatıldı.")
     if args.since:
         since = date.fromisoformat(args.since)
         init_db()
@@ -262,11 +282,14 @@ def main(argv: list[str] | None = None) -> int:
                    help="tarama: yalnızca kaynakları tara (AI ve e-posta yok)")
     r.add_argument("--no-send", action="store_true", help="E-posta gönderme; raporu data/reports altına yaz")
     r.add_argument("--since", help="Resmî Gazete'yi bu tarihten (YYYY-AA-GG) itibaren tara")
+    r.add_argument("--kilidi-kaldir", action="store_true",
+                   help="Yarıda kesilmiş (hâlâ 'çalışıyor' görünen) önceki çalıştırmayı kapat; başka tarama gerçekten sürmüyorsa kullanın")
     r.set_defaults(fn=cmd_run)
     sub.add_parser("test-email").set_defaults(fn=cmd_test_email)
     sub.add_parser("scheduler").set_defaults(fn=cmd_scheduler)
     sub.add_parser("healthcheck").set_defaults(fn=cmd_healthcheck)
     args = p.parse_args(argv)
+    _utf8_console()
     return args.fn(args)
 
 
