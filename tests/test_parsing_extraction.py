@@ -271,5 +271,21 @@ def test_ai_yokken_uzun_ve_seyrek_konulu_metin_dahil_edilmez():
     tax = Taxonomy.load(config_path("taxonomy.yaml"))
     sparse = ("Meslek mensuplarının sicil ve disiplin işlemleri hakkında genel hükümler. " * 1200) + " elektrik enerji lisans"
     dense = "Elektrik piyasası lisans sahibi üretim tesisi iletim sistemi dengeleme uzlaştırma. " * 80
-    assert tax.density(sparse) < 0.3
-    assert tax.density(dense) > 0.3
+    assert tax.density(sparse) < 1.0
+    assert tax.density(dense) > 1.0
+
+
+def test_tek_lisans_sahibinin_tarife_revizyonu_rutin_sayilir():
+    from enerji_takip.config import config_path
+    from enerji_takip.detection.relevance import Taxonomy
+
+    tax = Taxonomy.load(config_path("taxonomy.yaml"))
+    karar = ("Enerji Piyasası Düzenleme Kurulunun 22/10/2026 tarihli toplantısında; Doğal Gaz Dağıtım Şirketleri İçin "
+             "Tarife Hesaplama Usul ve Esaslarını (Metodoloji) belirleyen 22/6/2017 tarihli ve 7139 sayılı Kurul Kararı "
+             "uyarınca, dağıtım lisansı sahibi Torosgaz Kütahya Doğal Gaz Dağıtım Anonim Şirketi'nin 2022-2026 yılları "
+             "arası perakende satış tarifelerine yönelik alınmış olan 18/7/2024 tarihli ve 12754 sayılı Kurul Kararının "
+             "aşağıda yer verildiği şekilde revize edilmesine, karar verilmiştir. MADDE 1- tablo revize edilmiştir.")
+    ok, why = tax.is_routine(karar, "KURUL_KARARI")
+    assert ok and "tarife revizyonu" in why
+    genel = "Doğal gaz dağıtım şirketleri için tarife hesaplama usul ve esasları yönetmeliği değiştirilmiştir. Anonim şirketler uyar."
+    assert tax.is_routine(genel, "KURUL_KARARI")[0] is False
