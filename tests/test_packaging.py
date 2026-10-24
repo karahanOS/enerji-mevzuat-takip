@@ -85,3 +85,22 @@ def test_gizli_dosyalar_git_disinda(path):
     ignored = (ROOT / path).read_text(encoding="utf-8").split()
     for entry in (".env", "data/", "veri/"):
         assert entry in ignored, entry
+
+
+def test_calisma_dizinindeki_sistem_config_klasoru_uygulama_dizini_sayilmaz(tmp_path, monkeypatch):
+    """Windows'ta Claude Desktop sunucuyu C:\\Windows\\System32 içinde başlatır; orada 'config' adlı sistem klasörü var."""
+    from enerji_takip.config import app_home
+
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    cwd = tmp_path / "system32"
+    (cwd / "config").mkdir(parents=True)
+    (cwd / "config" / "SAM").write_text("sistem dosyası")
+    monkeypatch.delenv("ENERJI_TAKIP_HOME", raising=False)
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("USERPROFILE", str(fake_home))
+    monkeypatch.chdir(cwd)
+    assert app_home() == fake_home / ".enerji-mevzuat-takip"
+    # Gerçek bir yapılandırma dosyası varsa çalışma dizini kullanılır
+    (cwd / "config" / "profile.yaml").write_text("aciklama: x\n")
+    assert app_home() == cwd

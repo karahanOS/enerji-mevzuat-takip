@@ -67,10 +67,29 @@ def pdf_to_text(content: bytes) -> str:
     return normalize_space("\n".join(parts))
 
 
+def looks_garbled(text: str) -> bool:
+    """PDF'lerde yazı tipi kodlaması bozuksa çıkarılan metin kontrol karakterlerinden oluşur."""
+    sample = [c for c in text[:4000] if not c.isspace()]
+    if len(sample) < 20:
+        return False
+    bad = sum(1 for c in sample if ord(c) < 32 or c == "\ufffd" or 0x7F <= ord(c) < 0xA0)
+    return bad / len(sample) > 0.05
+
+
 def result_to_text(result: FetchResult) -> str:
     if result.is_pdf:
         return pdf_to_text(result.content)
     return html_to_text(result.text)
+
+
+def _ocr_fallback(result: FetchResult) -> str:
+    from ..config import get_settings
+    from .ocr import ocr_pdf
+
+    st = get_settings()
+    if not st.ocr_enabled or not result.is_pdf:
+        return ""
+    return ocr_pdf(result.content, max_pages=st.ocr_max_pages)
 
 
 class SourceAdapter(ABC):
@@ -97,6 +116,11 @@ class SourceAdapter(ABC):
             except (FetchError, Exception) as exc:  # PDF ayrıştırma hataları dahil
                 last_error = exc
                 continue
+            if text and looks_garbled(text):
+                text = _ocr_fallback(result)
+                if not text or looks_garbled(text):
+                    last_error = "PDF metni okunamadı (yazı tipi kodlaması bozuk); resmî bağlantıdan açın"
+                    continue
             if len(text) > len(best):
                 best = text
             if len(text) >= 400:

@@ -216,3 +216,49 @@ def test_degisen_maddeler():
     assert {"madde": "Geçici Madde 15", "islem": "yürürlükten kaldırıldı"} in arts
     ext = extract_all("X Yönetmeliğinde Değişiklik Yapılmasına Dair Yönetmelik", "YONETMELIK", html_to_text(html), PUB)
     assert "yururlukten_kaldirma" in ext.aspects and "madde_eklenmesi" in ext.aspects
+
+
+def test_rss_baglanti_yoksa_guid_veya_goreli_yol_kullanilir_ve_tani_verilir():
+    from enerji_takip.sources.rss import describe_feed, parse_feed
+
+    xml = ('<rss version="2.0"><channel>'
+           '<item><title>A projesi ÇED</title><guid>https://enerji.gov.tr/duyuru/1</guid></item>'
+           '<item><title>B</title><guid isPermaLink="false">kimlik-2</guid><link>/Media/b.docx</link></item>'
+           '<item><title>C</title><enclosure url="https://enerji.gov.tr/Media/c.pdf"/></item>'
+           '</channel></rss>')
+    got = parse_feed(xml, base_url="https://enerji.gov.tr/RSS/15?t=1")
+    assert [e["link"] for e in got] == ["https://enerji.gov.tr/duyuru/1", "https://enerji.gov.tr/Media/b.docx",
+                                         "https://enerji.gov.tr/Media/c.pdf"]
+    bad = '<rss><channel><item><title>X</title><guid>kimlik</guid></item></channel></rss>'
+    assert parse_feed(bad) == []
+    assert "1 kayıt var ama başlık+bağlantı yok" in describe_feed(bad) and "guid='kimlik'" in describe_feed(bad)
+    assert describe_feed("<rss><channel/></rss>") == "akışta <item>/<entry> yok"
+
+
+def test_ilan_bolumu_baglantilari_gercek_belgeyle_karismaz():
+    """Gerçek sayfada ilan alt başlıkları main.aspx?home=…/ilanlar/…-N.htm adresine gider; bu, N numaralı
+    gerçek belgenin başlığına ve adresine karışıyordu (24.10.2026 canlı veriden)."""
+    html = ('<html><body><p>21 Ekim 2026</p><p>Resmî Gazete</p><p>Sayı : 33407</p>'
+            '<p><b>YÖNETMELİK</b></p>'
+            '<p><a href="20261021-3.htm">Elektrik Piyasası Dengeleme ve Uzlaştırma Yönetmeliğinde Değişiklik '
+            'Yapılmasına Dair Yönetmelik</a></p>'
+            '<p><b>İLÂN BÖLÜMÜ</b></p><p>b - Artırma, Eksiltme ve İhale İlânları</p>'
+            '<p><a href="http://www.resmigazete.gov.tr/main.aspx?home=http://www.resmigazete.gov.tr/ilanlar/eskiilanlar/'
+            '2026/10/20261021.htm&amp;main=http://www.resmigazete.gov.tr/ilanlar/eskiilanlar/2026/10/20261021-3.htm">'
+            'b - Artırma, Eksiltme ve İhale İlânları</a></p></body></html>')
+    docs, _ = parse_fihrist(html, "https://www.resmigazete.gov.tr/eskiler/2026/10/20261021.htm", expected=date(2026, 10, 21))
+    by_id = {d.external_id: d for d in docs}
+    real = by_id["20261021-3"]
+    assert real.title.endswith("Yönetmelik") and "İlânları" not in real.title
+    assert real.url == "https://www.resmigazete.gov.tr/eskiler/2026/10/20261021-3.htm" and not real.skip_reason
+    ilan = by_id["ilan-20261021-3"]
+    assert ilan.skip_reason == "İlan bölümü" and ilan.doc_type == "ILAN"
+
+
+def test_bozuk_pdf_metni_okunamadi_sayilir_ve_aiya_gitmez():
+    from enerji_takip.sources.base import looks_garbled
+
+    garbage = "\x07\b\x11\b\x05\x03\x07\x06\x11\x06\x11\x04\n\x11\x10\x12\x04 \b\n\x12\x11\x10\x11\x0e\x12\x0f\x03\x06\x05" * 3
+    assert looks_garbled(garbage)
+    assert not looks_garbled("Enerji Piyasası Düzenleme Kurulunun 15/10/2026 Tarihli ve 14967 Sayılı Kararı " * 5)
+    assert not looks_garbled("1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 kWh TL 1,5 2,5 3,5 4,5")

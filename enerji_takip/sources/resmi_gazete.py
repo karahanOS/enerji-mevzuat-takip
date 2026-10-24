@@ -157,24 +157,29 @@ def parse_fihrist(html: str, page_url: str, expected: date | None = None) -> tup
         if not im:
             return
         ext_id = f"{im.group('ymd')}{im.group('muk') or ''}-{im.group('no')}"
+        # İlan bölümü bağlantıları (main.aspx?home=…/ilanlar/eskiilanlar/…-N.htm) aynı numara kalıbını taşır;
+        # gerçek belge N ile karışıp başlığını ve adresini bozmasın diye ayrı anahtar kullanılır.
+        is_ilan_link = "/ilanlar/" in abs_url.lower()
+        if is_ilan_link:
+            ext_id = f"ilan-{ext_id}"
         title = _clean_title(node.get_text(" ", strip=True))
         ext = im.group("ext").lower()
         doc = docs.get(ext_id)
         if doc is None:
-            doc_type = "ILAN" if top == "ILAN" else (sub or doc_type_from_title(title))
+            doc_type = "ILAN" if (top == "ILAN" or is_ilan_link) else (sub or doc_type_from_title(title))
             doc = FetchedDocument(
                 source_key="resmi_gazete",
                 external_id=ext_id,
                 title=title,
                 url=abs_url,
                 doc_type=doc_type,
-                section=top,
+                section="ILAN" if is_ilan_link else top,
                 subsection=sub,
                 rg_date=meta["rg_date"],
                 rg_number=meta["rg_number"],
                 is_mukerrer=is_mukerrer or bool(im.group("muk")),
                 published_date=meta["rg_date"],
-                skip_reason="İlan bölümü" if top == "ILAN" else None,
+                skip_reason="İlan bölümü" if (top == "ILAN" or is_ilan_link) else None,
             )
             if ext == "pdf":
                 doc.pdf_url = abs_url

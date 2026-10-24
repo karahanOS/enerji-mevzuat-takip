@@ -12,7 +12,7 @@ aracıyla doğrulandı. Sizin bağlantınızdan (veya GitHub Actions'tan) sonuç
 | EPDK – Duyurular | `epdk.gov.tr/Detay/Icerik/4-0-1/duyurular` → `/Detay/Icerik/4-NNNNN/…` | HTML liste | **Etkin.** İstatistik ve sektör raporu duyuruları hariç. |
 | EPİAŞ – Elektrik Piyasası Duyuruları | `epias.com.tr/spot-elektrik-piyasasi/elektrik-piyasasi-duyurulari` → `/tum-duyurular/…` | HTML liste | **Etkin.** Aylık uzlaştırma bildirimi, planlı bakım, teminat takvimi gibi rutin duyurular hariç. |
 | ETKB – Duyurular | `enerji.gov.tr/medya-duyurular-liste` → `duyuru-detay?id=NNNNN` | HTML liste | **Etkin.** Tek tek santral imar planı duyuruları hariç; YEKA ve lisanssız üretim duyuruları dahil. |
-| ETKB – Mevzuat RSS | `enerji.gov.tr/RSS/15?t=1` | RSS (tarih alanı yok) | **Etkin.** `enerji.gov.tr/rss` sayfasında "Duyurular" adıyla listelenen akış; 23.10.2026'da içeriği mevzuat kayıtlarıydı. |
+| ETKB – Mevzuat RSS | `enerji.gov.tr/RSS/15?t=1` | RSS | **Kapalı.** GitHub Actions'tan alınan akışta kayıtların bağlantısı yoktu (yalnızca başlık, açıklama, tarih); içerik zamana göre değişiyor. ETKB duyuruları HTML listesinden izleniyor. Düzelirse `enabled: true` yapın. |
 | TEİAŞ – Duyurular | `teias.gov.tr/duyurular` → `/duyurular/<slug>` | HTML liste | **Etkin.** Kapasite mekanizması, yan hizmetler, lisanssız kapasite tahsisleri. Personel duyuruları hariç. |
 | EPİAŞ – Doğal Gaz Duyuruları | `epias.com.tr/spot-dogal-gaz-piyasasi/dogal-gaz-piyasasi-duyurulari` | HTML liste | **Kapalı.** Adres doğrulandı, liste yapısı doğrulanmadı. `check-sources --all` ✔ gösterirse `enabled: true` yapın. |
 | EPİAŞ – Çevresel Piyasalar | `epias.com.tr/cevresel-piyasalar/cevresel-piyasa-duyurulari` | HTML liste | **Kapalı.** Aynı nedenle. |

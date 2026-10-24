@@ -97,9 +97,13 @@ sources:
     url: https://enerji.gov.tr/RSS/15?t=1
     category: Bakanlık
     method: rss
+    enabled: false
+    status_if_disabled: devre_disi
     notes: >
-      enerji.gov.tr/rss sayfasında "Duyurular" adıyla listelenen akış (23.10.2026'da içerik olarak mevzuat
-      kayıtları döndürüyordu). Kayıtlarda tarih yok; yeni bağlantılar yeni kayıt sayılır.
+      Kapalı. 24.10.2026'da GitHub Actions'tan alınan akışta 100 kayıt vardı ama kayıtlarda bağlantı (link)
+      yoktu: yalnızca başlık, açıklama ve yayım tarihi (çoğu proje/ÇED duyurusu). Resmî bağlantı olmadan rapora
+      alınamaz. Aynı adres başka zamanlarda bağlantılı mevzuat kayıtları da döndürdü; içerik değişken. ETKB
+      duyuruları HTML listesinden zaten izleniyor. Akış düzelirse enabled: true yapın.
     config:
       feed_urls: ['https://enerji.gov.tr/RSS/15?t=1']
       doc_type: DUYURU

@@ -25,7 +25,7 @@ Tüm bileşenler ücretsizdir (bkz. [Maliyet](#maliyet--her-bileşen-ücretsiz))
 ## Ne yapar
 
 * **Kaynaklar:** Resmî Gazete (HTML ve PDF), EPDK duyuruları, EPİAŞ elektrik piyasası duyuruları, ETKB
-  duyuruları ve mevzuat RSS akışı, TEİAŞ duyuruları. Ayrıntı: [docs/SOURCES.md](docs/SOURCES.md).
+  duyuruları, TEİAŞ duyuruları (ETKB RSS adaptörü hazır ama varsayılan olarak kapalı). Ayrıntı: [docs/SOURCES.md](docs/SOURCES.md).
 * **Enerji filtresi:** Elektrik piyasası (PTF, SMF, GÖP, GİP, dengeleme, uzlaştırma, tarifeler, kapasite
   mekanizması, depolama), yenilenebilir enerji (YEKDEM, YEKA, lisanssız üretim, YEK-G), doğal gaz, petrol/LPG,
   karbon/ETS, enerji verimliliği, nükleer. Türkçe eklere dayanıklı kök eşleşmesi kullanır.

@@ -26,14 +26,17 @@ def app_home() -> Path:
     """Veri, günlük ve kullanıcı yapılandırmasının bulunduğu dizin.
 
     1. ENERJI_TAKIP_HOME ortam değişkeni
-    2. Çalışma dizini bir proje/şablon deposuysa (config/ klasörü veya .env var) orası
+    2. Çalışma dizini bir proje/şablon deposuysa (config/ altında sources|taxonomy|profile.yaml ya da .env var) orası
     3. Aksi halde ~/.enerji-mevzuat-takip (pip/uvx ile kurulumda, ör. MCP sunucusu)
     """
     env = os.environ.get("ENERJI_TAKIP_HOME", "").strip()
     if env:
         return Path(env).expanduser().resolve()
     cwd = Path.cwd()
-    if (cwd / "config").is_dir() or (cwd / ".env").is_file() or (
+    # "config/" klasörünün varlığı tek başına yetmez: Windows'ta C:\Windows\System32\config gibi
+    # sistem klasörleri aynı adı taşır. Bizim yapılandırma dosyalarımızdan biri bulunmalı.
+    has_config = any((cwd / "config" / name).is_file() for name in CONFIG_NAMES)
+    if has_config or (cwd / ".env").is_file() or (
             (cwd / "pyproject.toml").is_file() and (cwd / "enerji_takip").is_dir()):
         return cwd
     return Path.home() / ".enerji-mevzuat-takip"
@@ -132,6 +135,8 @@ class Settings:
     rg_rescan_days: int = 2
     rg_max_backfill_days: int = 14
     rg_first_run_days: int = 1
+    ocr_enabled: bool = True
+    ocr_max_pages: int = 8
 
     # Yapılandırma dosyaları (varsayılanlar pakette; config/ altına kopyalanarak özelleştirilir)
     sources_file: Path = field(default_factory=lambda: config_path("sources.yaml"))
@@ -187,6 +192,8 @@ class Settings:
         s.rg_rescan_days = _env_int("RG_RESCAN_DAYS", s.rg_rescan_days)
         s.rg_max_backfill_days = _env_int("RG_MAX_BACKFILL_DAYS", s.rg_max_backfill_days)
         s.rg_first_run_days = _env_int("RG_FIRST_RUN_DAYS", s.rg_first_run_days)
+        s.ocr_enabled = _env("OCR_ENABLED", "true").lower() not in ("0", "false", "hayir", "no")
+        s.ocr_max_pages = _env_int("OCR_MAX_PAGES", s.ocr_max_pages)
 
         for attr, var in (("sources_file", "SOURCES_FILE"), ("taxonomy_file", "TAXONOMY_FILE"),
                           ("profile_file", "PROFILE_FILE"), ("report_preview_dir", "REPORT_DIR"),
