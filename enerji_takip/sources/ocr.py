@@ -26,7 +26,7 @@ TUR_URL = "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/tu
 
 def _installed_langs(extra: list[str] | None = None) -> set[str]:
     try:
-        out = subprocess.run(["tesseract", "--list-langs", *(extra or [])], capture_output=True, text=True, timeout=20)
+        out = subprocess.run(["tesseract", "--list-langs", *(extra or [])], capture_output=True, encoding="utf-8", errors="replace", timeout=20)
         return set(out.stdout.split())
     except Exception:
         return set()
@@ -74,12 +74,12 @@ def ocr_pdf(content: bytes, *, max_pages: int = 8, timeout: int = 120, dpi: int 
             pdf = tmp_path / "in.pdf"
             pdf.write_bytes(content)
             subprocess.run(["pdftoppm", "-r", str(dpi), "-l", str(max_pages), "-png", str(pdf), str(tmp_path / "p")],
-                           check=True, capture_output=True, timeout=timeout)
+                           check=True, capture_output=True, timeout=timeout)  # çıktısı okunmaz (bayt)
             parts = []
             for img in sorted(tmp_path.glob("p-*.png")):
                 res = subprocess.run(["tesseract", str(img), "stdout", "-l", lang, *extra],
-                                     capture_output=True, text=True, timeout=timeout)
-                if res.returncode == 0:
+                                     capture_output=True, encoding="utf-8", errors="replace", timeout=timeout)
+                if res.returncode == 0 and res.stdout:
                     parts.append(res.stdout)
             return normalize_space("\n".join(parts))
     except Exception as exc:
