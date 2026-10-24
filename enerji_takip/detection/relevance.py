@@ -76,6 +76,8 @@ class Taxonomy:
         self.routine_max_chars = int(routine.get("max_chars", 6000))
         self.routine_company = [_stem_pattern(p) for p in routine.get("company_markers", [])]
         self.routine_patterns = [(p, _stem_pattern(p)) for p in routine.get("patterns", [])]
+        self.routine_specific_markers = [_stem_pattern(p) for p in routine.get("company_specific_markers", [])]
+        self.routine_specific_patterns = [(p, _stem_pattern(p)) for p in routine.get("company_specific_patterns", [])]
         self.routine_blockers = [(p, _stem_pattern(p)) for p in routine.get("market_wide_markers", [])]
 
     @classmethod
@@ -155,6 +157,9 @@ class Taxonomy:
         norm = normalize_for_match(text)
         if not any(p.search(norm) for p in self.routine_company):
             return False, ""
+        specific = [p for p, pat in self.routine_specific_patterns if pat.search(norm)]
+        if specific and any(m.search(norm) for m in self.routine_specific_markers):
+            return True, "Tek lisans sahibine özgü tarife revizyonu: " + ", ".join(specific[:2])
         blockers = [b for b, pat in self.routine_blockers if pat.search(norm)]
         if blockers:
             return False, ""

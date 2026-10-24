@@ -26,7 +26,7 @@ TriageFn = Callable[[str, str], tuple[str, str]]  # (başlık, metin) → (karar
 
 
 # AI ön eleme yokken uzun, yalnızca metinden eşleşen belgeler için asgari konu yoğunluğu (/1000 karakter)
-MIN_TEXT_DENSITY = 0.3
+MIN_TEXT_DENSITY = 1.0
 
 
 @dataclass
@@ -256,7 +256,7 @@ class ChangeDetectionEngine:
     def _triage(self, title: str, text: str, rel: RelevanceResult) -> tuple[RelevanceResult, str | None]:
         if self.triage is None:
             core_hit = any(self.taxonomy.is_core(c) for c in rel.categories)
-            if core_hit and len(text) > 5000 and self.taxonomy.density(text) < MIN_TEXT_DENSITY:
+            if core_hit and len(text) > 1500 and self.taxonomy.density(text) < MIN_TEXT_DENSITY:
                 rel.decision = ALAKASIZ
                 rel.reason += (f" | AI ön eleme kapalı; konu kökleri uzun metinde seyrek "
                                f"({self.taxonomy.density(text):.2f}/1000 karakter)")
