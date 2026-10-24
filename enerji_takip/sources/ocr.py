@@ -21,14 +21,45 @@ def ocr_available() -> bool:
     return bool(shutil.which("pdftoppm") and shutil.which("tesseract"))
 
 
-def _languages() -> str:
-    """Kurulu dil paketine göre: Türkçe varsa 'tur', yoksa 'eng'."""
+TUR_URL = "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/tur.traineddata"
+
+
+def _installed_langs(extra: list[str] | None = None) -> set[str]:
     try:
-        out = subprocess.run(["tesseract", "--list-langs"], capture_output=True, text=True, timeout=20)
-        langs = set(out.stdout.split())
+        out = subprocess.run(["tesseract", "--list-langs", *(extra or [])], capture_output=True, text=True, timeout=20)
+        return set(out.stdout.split())
     except Exception:
-        return "eng"
-    return "tur+eng" if "tur" in langs else "eng"
+        return set()
+
+
+def _fetch_tur(dest: Path) -> bool:
+    """Sistemde Türkçe paket yoksa tur.traineddata'yı (~2 MB) uygulama dizinine indirir."""
+    try:
+        import httpx
+
+        dest.mkdir(parents=True, exist_ok=True)
+        r = httpx.get(TUR_URL, timeout=60, follow_redirects=True)
+        r.raise_for_status()
+        if len(r.content) < 100_000:  # hata sayfası vb.
+            return False
+        (dest / "tur.traineddata").write_bytes(r.content)
+        return True
+    except Exception as exc:
+        log.warning("Türkçe OCR paketi indirilemedi: %s", exc)
+        return False
+
+
+def _tesseract_setup() -> tuple[str, list[str]]:
+    """(dil, ek bağımsız değişkenler). Önce sistem 'tur' paketi, sonra uygulama dizinindeki, yoksa indirir, olmazsa 'eng'."""
+    langs = _installed_langs()
+    if "tur" in langs:
+        return ("tur+eng" if "eng" in langs else "tur"), []
+    from ..config import app_home
+
+    tessdir = app_home() / "tessdata"
+    if not (tessdir / "tur.traineddata").is_file() and not _fetch_tur(tessdir):
+        return "eng", []
+    return "tur", ["--tessdata-dir", str(tessdir)]
 
 
 def ocr_pdf(content: bytes, *, max_pages: int = 8, timeout: int = 120, dpi: int = 200) -> str:
@@ -36,7 +67,7 @@ def ocr_pdf(content: bytes, *, max_pages: int = 8, timeout: int = 120, dpi: int 
     if not ocr_available():
         log.info("OCR atlandı: pdftoppm/tesseract kurulu değil")
         return ""
-    lang = _languages()
+    lang, extra = _tesseract_setup()
     try:
         with tempfile.TemporaryDirectory(prefix="enerji-ocr-") as tmp:
             tmp_path = Path(tmp)
@@ -46,7 +77,7 @@ def ocr_pdf(content: bytes, *, max_pages: int = 8, timeout: int = 120, dpi: int 
                            check=True, capture_output=True, timeout=timeout)
             parts = []
             for img in sorted(tmp_path.glob("p-*.png")):
-                res = subprocess.run(["tesseract", str(img), "stdout", "-l", lang],
+                res = subprocess.run(["tesseract", str(img), "stdout", "-l", lang, *extra],
                                      capture_output=True, text=True, timeout=timeout)
                 if res.returncode == 0:
                     parts.append(res.stdout)
