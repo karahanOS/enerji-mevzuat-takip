@@ -1,4 +1,4 @@
 """Türkiye enerji ve elektrik piyasası mevzuatı takibi: günlük e-posta raporu ve MCP sunucusu."""
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 PROJECT_URL = "https://github.com/karahanOS/enerji-mevzuat-takip"
