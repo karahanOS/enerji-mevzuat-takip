@@ -249,6 +249,14 @@ routine:
     - tesis tamamlanma süre
     - idari para cezası verilmesine
     - üretim lisans
+  # Tek bir lisans sahibinin tarifesini revize eden kararlar: gerekçede geçen "usul ve esas/metodoloji" ifadesi
+  # piyasa geneli anlamına gelmez; aşağıdaki işaretçi ve kalıp birlikte varsa engelleyiciler yok sayılır.
+  company_specific_markers:
+    - lisansı sahibi
+  company_specific_patterns:
+    - tarifelerine yönelik alınmış olan
+    - tarifesine yönelik alınmış olan
+    - kurul kararının aşağıda yer verildiği şekilde revize
   market_wide_markers:
     - tüm piyasa katılımcı
     - usul ve esas
