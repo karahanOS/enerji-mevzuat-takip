@@ -7,6 +7,7 @@ Debian/Ubuntu: apt-get install poppler-utils tesseract-ocr tesseract-ocr-tur
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import subprocess
 import tempfile
@@ -27,7 +28,8 @@ TUR_URL = "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/tu
 def _installed_langs(extra: list[str] | None = None) -> set[str]:
     try:
         out = subprocess.run(["tesseract", "--list-langs", *(extra or [])], capture_output=True, encoding="utf-8", errors="replace", timeout=20)
-        return set(out.stdout.split())
+        # Tesseract sürümüne/derlemesine göre liste stdout ya da stderr'e yazılır
+        return set((out.stdout + "\n" + out.stderr).split())
     except Exception:
         return set()
 
@@ -51,6 +53,9 @@ def _fetch_tur(dest: Path) -> bool:
 
 def _tesseract_setup() -> tuple[str, list[str]]:
     """(dil, ek bağımsız değişkenler). Önce sistem 'tur' paketi, sonra uygulama dizinindeki, yoksa indirir, olmazsa 'eng'."""
+    forced = os.environ.get("OCR_LANG", "").strip()
+    if forced:
+        return forced, []
     langs = _installed_langs()
     if "tur" in langs:
         return ("tur+eng" if "eng" in langs else "tur"), []
@@ -68,6 +73,7 @@ def ocr_pdf(content: bytes, *, max_pages: int = 8, timeout: int = 120, dpi: int 
         log.info("OCR atlandı: pdftoppm/tesseract kurulu değil")
         return ""
     lang, extra = _tesseract_setup()
+    log.info("OCR dili: %s", lang)
     try:
         with tempfile.TemporaryDirectory(prefix="enerji-ocr-") as tmp:
             tmp_path = Path(tmp)
