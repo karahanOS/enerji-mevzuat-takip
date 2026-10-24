@@ -57,3 +57,24 @@ def test_araclar_yoksa_ocr_bos_doner(monkeypatch):
     monkeypatch.setattr(ocr.shutil, "which", lambda name: None)
     assert ocr.ocr_available() is False
     assert ocr.ocr_pdf(b"%PDF") == ""
+
+
+def test_turkce_paket_yoksa_indirilir_ve_kullanilir(monkeypatch, tmp_path):
+    monkeypatch.setenv("ENERJI_TAKIP_HOME", str(tmp_path))
+    monkeypatch.setattr(ocr, "_installed_langs", lambda extra=None: {"eng", "osd"})
+    monkeypatch.setattr(ocr, "_fetch_tur", lambda dest: (dest.mkdir(parents=True, exist_ok=True), (dest / "tur.traineddata").write_bytes(b"x"), True)[2])
+    lang, extra = ocr._tesseract_setup()
+    assert lang == "tur" and extra == ["--tessdata-dir", str(tmp_path / "tessdata")]
+
+
+def test_turkce_indirilemezse_ingilizceye_duser(monkeypatch, tmp_path):
+    monkeypatch.setenv("ENERJI_TAKIP_HOME", str(tmp_path))
+    monkeypatch.setattr(ocr, "_installed_langs", lambda extra=None: {"eng"})
+    monkeypatch.setattr(ocr, "_fetch_tur", lambda dest: False)
+    assert ocr._tesseract_setup() == ("eng", [])
+
+
+def test_sistemde_turkce_varsa_indirmez(monkeypatch):
+    monkeypatch.setattr(ocr, "_installed_langs", lambda extra=None: {"eng", "tur"})
+    monkeypatch.setattr(ocr, "_fetch_tur", lambda dest: (_ for _ in ()).throw(AssertionError("indirilmemeli")))
+    assert ocr._tesseract_setup() == ("tur+eng", [])
