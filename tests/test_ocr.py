@@ -98,3 +98,30 @@ def test_subprocess_cikti_utf8_cozulur_yerel_kod_sayfasina_bagli_degil(monkeypat
     out = ocr.ocr_pdf(b"%PDF")
     assert "Şişli" in out
     assert all(enc == "utf-8" and not text for name, enc, text in seen if name == "tesseract")
+
+
+def test_cok_kisa_pdf_metni_icin_ocr_denenir_ve_uzunsa_kullanilir(monkeypatch):
+    short = "KURUL KARARI 10 Ekim 2026 CUMARTESİ Resmî Gazete Sayı : 33396"
+    _patch(monkeypatch, READABLE)
+    monkeypatch.setattr(base, "pdf_to_text", lambda content: short)
+    out = _Adapter("epdk").fetch_text(_Fetcher(), _doc())
+    assert out.status == "tam" and "14967" in out.text
+
+
+def test_kisa_pdf_ocr_bos_donerse_mevcut_metin_korunur(monkeypatch):
+    short = "KURUL KARARI 10 Ekim 2026 CUMARTESİ Resmî Gazete Sayı : 33396"
+    _patch(monkeypatch, "")
+    monkeypatch.setattr(base, "pdf_to_text", lambda content: short)
+    out = _Adapter("epdk").fetch_text(_Fetcher(), _doc())
+    assert out.status == "kisa" and out.text == short
+
+
+def test_ocr_dili_env_ile_zorlanir_ve_liste_stderr_den_da_okunur(monkeypatch):
+    import subprocess
+
+    monkeypatch.setenv("OCR_LANG", "tur")
+    assert ocr._tesseract_setup() == ("tur", [])
+    monkeypatch.delenv("OCR_LANG")
+    monkeypatch.setattr(ocr.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(
+        a, 0, stdout="", stderr="List of available languages (3):\neng\nosd\ntur\n"))
+    assert ocr._tesseract_setup() == ("tur+eng", [])

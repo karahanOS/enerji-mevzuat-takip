@@ -262,3 +262,14 @@ def test_bozuk_pdf_metni_okunamadi_sayilir_ve_aiya_gitmez():
     assert looks_garbled(garbage)
     assert not looks_garbled("Enerji Piyasası Düzenleme Kurulunun 15/10/2026 Tarihli ve 14967 Sayılı Kararı " * 5)
     assert not looks_garbled("1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 kWh TL 1,5 2,5 3,5 4,5")
+
+
+def test_ai_yokken_uzun_ve_seyrek_konulu_metin_dahil_edilmez():
+    from enerji_takip.config import config_path
+    from enerji_takip.detection.relevance import Taxonomy
+
+    tax = Taxonomy.load(config_path("taxonomy.yaml"))
+    sparse = ("Meslek mensuplarının sicil ve disiplin işlemleri hakkında genel hükümler. " * 1200) + " elektrik enerji lisans"
+    dense = "Elektrik piyasası lisans sahibi üretim tesisi iletim sistemi dengeleme uzlaştırma. " * 80
+    assert tax.density(sparse) < 0.3
+    assert tax.density(dense) > 0.3
