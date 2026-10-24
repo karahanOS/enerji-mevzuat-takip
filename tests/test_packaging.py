@@ -104,3 +104,32 @@ def test_calisma_dizinindeki_sistem_config_klasoru_uygulama_dizini_sayilmaz(tmp_
     # Gerçek bir yapılandırma dosyası varsa çalışma dizini kullanılır
     (cwd / "config" / "profile.yaml").write_text("aciklama: x\n")
     assert app_home() == cwd
+
+
+def test_cp1252_konsolunda_turkce_cikti_cokmez():
+    code = "import sys;from enerji_takip.__main__ import _utf8_console,_print;_utf8_console();_print('Durum: tamamlandı ğ ş İ')"
+    env = {"PYTHONIOENCODING": "cp1252", "PYTHONPATH": str(ROOT), "PATH": "/usr/bin:/bin"}
+    out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, timeout=60)
+    assert out.returncode == 0, out.stderr
+    assert "tamamlandı".encode("utf-8") in out.stdout
+
+
+def test_kilidi_kaldir_yarim_kalan_kaydi_kapatir(settings, monkeypatch):
+    from types import SimpleNamespace
+
+    from sqlalchemy import select
+
+    import enerji_takip.pipeline as pl
+    from enerji_takip.__main__ import main
+    from enerji_takip.db import init_db, session_scope
+    from enerji_takip.models import ScanRun
+
+    init_db()
+    with session_scope() as s:
+        s.add(ScanRun(run_type="tarama", trigger="cli", status="calisiyor"))
+    fake = SimpleNamespace(status="basarili", complete=True, new_documents=0, new_changes=0, analyzed=0,
+                           report_subject=None, warnings=[], errors=[])
+    monkeypatch.setattr(pl, "run_pipeline", lambda **kw: fake)
+    assert main(["run", "--type", "tarama", "--no-send", "--kilidi-kaldir"]) == 0
+    with session_scope() as s:
+        assert [r.status for r in s.scalars(select(ScanRun))] == ["yarida_kaldi"]
