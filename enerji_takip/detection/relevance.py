@@ -104,6 +104,24 @@ class Taxonomy:
         weak = {c.key for c in self.categories if c.weak}
         return {k: v for k, v in hits.items() if k not in weak}
 
+    def density(self, text: str) -> float:
+        """Güçlü (zayıf olmayan) konu köklerinin her 1000 karakterdeki geçiş sayısı.
+
+        Uzun ve konusu enerji olmayan bir metinde ("Optisyen-Gözlükçüler Birliği Yönetmeliği") 'elektrik'
+        gibi kökler birkaç kez geçebilir; yoğunluk bunu gerçek enerji düzenlemelerinden ayırır.
+        """
+        if not text:
+            return 0.0
+        norm = normalize_for_match(text)
+        weak = {c.key for c in self.categories if c.weak}
+        total = 0
+        for cat in self.categories:
+            if cat.key in weak:
+                continue
+            for _, pat in cat.patterns + cat.law_patterns:
+                total += len(pat.findall(norm))
+        return total / max(len(norm), 1) * 1000
+
     def assess_title(self, title: str, doc_type: str, section: str | None, *, skip_reason: str | None = None,
                      is_gazette: bool = True) -> RelevanceResult:
         if skip_reason or (section and section in self.skip_sections):
