@@ -82,6 +82,9 @@ def result_to_text(result: FetchResult) -> str:
     return html_to_text(result.text)
 
 
+SHORT_PDF_CHARS = 300  # bunun altındaki PDF metni şüpheli sayılır, OCR denenir
+
+
 def _ocr_fallback(result: FetchResult) -> str:
     from ..config import get_settings
     from .ocr import ocr_pdf
@@ -121,6 +124,11 @@ class SourceAdapter(ABC):
                 if not text or looks_garbled(text):
                     last_error = "PDF metni okunamadı (yazı tipi kodlaması bozuk); resmî bağlantıdan açın"
                     continue
+            elif result.is_pdf and len(text) < SHORT_PDF_CHARS:
+                # Yalnızca başlık satırı gibi çok kısa metin: gövde görüntü olabilir; OCR daha uzun metin verirse onu kullan
+                ocr_text = _ocr_fallback(result)
+                if ocr_text and not looks_garbled(ocr_text) and len(ocr_text) > max(len(text) * 1.5, len(text) + 100):
+                    text = ocr_text
             if len(text) > len(best):
                 best = text
             if len(text) >= 400:
