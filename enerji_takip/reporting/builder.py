@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session
 from ..classification import IMPACT_LABELS, LEVEL_LABELS, LEVEL_ORDER
 from ..detection.extract import ASPECT_LABELS, CHANGE_TYPE_LABELS, DOC_TYPE_LABELS
 from ..detection.relevance import Taxonomy
-from ..models import EmailReport, EmailReportItem, RegulatoryChange
-from ..text_utils import format_tr_date
+from ..models import EmailReport, EmailReportItem, RegulatoryChange, RegulatoryDocument, RegulatorySource
+from ..text_utils import format_tr_date, normalize_space
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 _env = Environment(
@@ -70,6 +70,8 @@ class ReportInput:
     docs_filtered: int = 0
     docs_skipped: int = 0
     ai_usage: str = ""
+    excluded_since: datetime | None = None  # bu zamandan sonra ilk görülüp elenen belgeler listelenir
+    excluded_max: int = 150
 
 
 def to_local(dt: datetime | None, tz: str) -> str:
@@ -98,6 +100,48 @@ def pending_changes(session: Session, report_type: str) -> list[RegulatoryChange
         c.document.rg_date or c.document.published_date or date.min,
     ))
     return changes
+
+
+def excluded_documents(session: Session, since: datetime | None, limit: int, taxonomy: Taxonomy | None = None) -> dict:
+    """Kontrol amaçlı: bu taramada ilgisiz bulunan ve analiz dışı bırakılan belgeler (ad + kaynak).
+
+    Analiz dışı bırakılanlardan başlığı enerji konularıyla eşleşenler (ör. ilan bölümündeki bir elektrik ihalesi
+    veya acele kamulaştırma ilanı) `skipped_relevant` altında ayrıca, öne çıkarılarak listelenir.
+    """
+    empty = {"irrelevant": [], "skipped": [], "skipped_relevant": [],
+             "irrelevant_total": 0, "skipped_total": 0, "skipped_relevant_total": 0}
+    if since is None or limit <= 0:
+        return empty
+    q = (
+        select(RegulatoryDocument, RegulatorySource.name)
+        .join(RegulatorySource, RegulatorySource.id == RegulatoryDocument.source_id)
+        .where(RegulatoryDocument.first_seen_at >= since, RegulatoryDocument.relevance.in_(["alakasiz", "atlandi"]))
+        .order_by(RegulatorySource.name, RegulatoryDocument.rg_date.desc(), RegulatoryDocument.title)
+    )
+    out = dict(empty, irrelevant=[], skipped=[], skipped_relevant=[])
+    for doc, source_name in session.execute(q):
+        key = "skipped" if doc.relevance == "atlandi" else "irrelevant"
+        keywords: list[str] = []
+        if key == "skipped" and taxonomy is not None:
+            strong = taxonomy._strong(taxonomy.match(doc.title or ""))
+            keywords = sorted({k for v in strong.values() for k in v})[:6]
+            if keywords:
+                key = "skipped_relevant"
+        out[key + "_total"] += 1
+        if len(out[key]) >= limit:
+            continue
+        date_text = format_tr_date(doc.rg_date or doc.published_date) if (doc.rg_date or doc.published_date) else ""
+        reason = normalize_space(doc.relevance_reason or "")
+        out[key].append({
+            "source": source_name,
+            "title": normalize_space(doc.title or "")[:220],
+            "date": date_text,
+            "reason": reason[:120],
+            "section": doc.section or "",
+            "keywords": keywords,
+            "url": doc.url,
+        })
+    return out
 
 
 def _fmt(iso: str | None) -> str:
@@ -218,7 +262,9 @@ def build_report(session: Session, inp: ReportInput, changes: list[RegulatoryCha
         subject = f"[ENERJİ MEVZUAT] {inp.report_date.isoformat()} | Günlük Enerji Mevzuatı Değişiklikleri"
     if not inp.is_complete:
         subject += " | EKSİK TARAMA"
+    excluded = excluded_documents(session, inp.excluded_since, inp.excluded_max, taxonomy)
     ctx = {
+        "excluded": excluded,
         "subject": subject,
         "report_type": inp.report_type,
         "report_date": format_tr_date(inp.report_date),
