@@ -444,6 +444,8 @@ class Pipeline:
             docs_scanned=totals.new_documents,
             docs_filtered=totals.irrelevant,
             docs_skipped=totals.skipped,
+            excluded_since=run.started_at,
+            excluded_max=self.settings.report_excluded_max,
             ai_usage=(f"{get_setting(session, KEY_LLM_CALLS_PREFIX + today.isoformat()) or 0}"
                       f" / {self.settings.llm_daily_max_calls}") if self.analysis_chain else "AI kapalı",
         )

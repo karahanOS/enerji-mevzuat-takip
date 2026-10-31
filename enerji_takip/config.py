@@ -146,6 +146,7 @@ class Settings:
     # Çıktılar
     report_preview_dir: Path = field(default_factory=lambda: app_home() / "data" / "raporlar")
     report_keep: int = 60
+    report_excluded_max: int = 150  # raporda listelenecek ilgisiz/analiz dışı belge sayısı (0 = listeleme)
     log_dir: Path = field(default_factory=lambda: app_home() / "data" / "loglar")
     log_level: str = "INFO"
 
@@ -201,6 +202,7 @@ class Settings:
             if _env(var):
                 setattr(s, attr, resolve_path(_env(var)))
         s.report_keep = _env_int("REPORT_KEEP", s.report_keep)
+        s.report_excluded_max = _env_int("REPORT_EXCLUDED_MAX", s.report_excluded_max)
         s.log_level = (_env("LOG_LEVEL", s.log_level) or "INFO").upper()
         return s
 
