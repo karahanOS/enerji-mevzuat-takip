@@ -16,7 +16,7 @@ aracıyla doğrulandı. Sizin bağlantınızdan (veya GitHub Actions'tan) sonuç
 | TEİAŞ – Duyurular | `teias.gov.tr/duyurular` → `/duyurular/<slug>` | HTML liste | **Etkin.** Kapasite mekanizması, yan hizmetler, lisanssız kapasite tahsisleri. Personel duyuruları hariç. |
 | EPİAŞ – Doğal Gaz Duyuruları | `epias.com.tr/spot-dogal-gaz-piyasasi/dogal-gaz-piyasasi-duyurulari` | HTML liste | **Kapalı.** Adres doğrulandı, liste yapısı doğrulanmadı. `check-sources --all` ✔ gösterirse `enabled: true` yapın. |
 | EPİAŞ – Çevresel Piyasalar | `epias.com.tr/cevresel-piyasalar/cevresel-piyasa-duyurulari` | HTML liste | **Kapalı.** Aynı nedenle. |
-| EPDK – Elektrik Kurul Kararları listesi | `…/3-0-39-3/son-kurul-kararlari/elektrik` | — | **Kapalı.** Tablo JavaScript ile dolduruluyor. Kararlar Resmî Gazete'den izleniyor. |
+| EPDK – Elektrik Kurul Kararları listesi | `…/3-0-39-3/son-kurul-kararlari/elektrik` | Sayfa içi AJAX: `POST /Detay/GetFastAccessList {"fId":…}` (67 kategori yaprağı), belge `/Detay/DownloadDocument?id=…` (çoğu docx, bazıları PDF) | **Etkin (v0.1.7).** Karar numarasıyla tekilleştirilir; son 120 günün kararları alınır, ilk çalıştırmada bulunanlar başlangıç sayılır. Eski `.doc` biçimi okunamaz. 31.10.2026'da tarayıcıdan doğrulandı: 67 yaprak, 1.952 kayıt (1.883 benzersiz karar no), son 12 ayda 51 karar; 44'ü Resmî Gazete'de de var (ortalama gecikme 5 gün), 7'si yok (OSB tarifeleri). |
 | Mevzuat Bilgi Sistemi | `mevzuat.gov.tr` | — | **Kapalı.** JavaScript gerekiyor, belgelenmiş API yok. |
 
 Kaynak listesi `enerji_takip/varsayilan/sources.yaml` içindedir; değiştirmek için `enerji-takip init-config`

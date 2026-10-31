@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..models import RegulatorySource
 from .base import SourceAdapter
+from .epdk import EpdkKararlarAdapter
 from .listing import HtmlListingAdapter
 from .resmi_gazete import ResmiGazeteAdapter
 from .rss import RssAdapter
@@ -17,6 +18,7 @@ ADAPTERS: dict[str, type[SourceAdapter]] = {
     ResmiGazeteAdapter.method: ResmiGazeteAdapter,
     HtmlListingAdapter.method: HtmlListingAdapter,
     RssAdapter.method: RssAdapter,
+    EpdkKararlarAdapter.method: EpdkKararlarAdapter,
 }
 
 REQUIRED_FIELDS = ("key", "name", "url", "category", "method")

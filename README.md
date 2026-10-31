@@ -222,8 +222,8 @@ sağlayıcıya geçilir; hepsi doluysa rapor AI olmadan gider ve analiz ertesi g
    yoksa taramaz ve bunu raporlar.
 3. **GitHub Actions IP'leri yurt dışındadır.** Bazı kamu siteleri yurt dışı erişimi kısıtlayabilir. Böyle bir
    kaynak Actions'ta sürekli "erişilemedi" görünürse yerelde çalıştırın.
-4. **İzlenmeyen kaynaklar:** EPDK kurul kararları listesi ve mevzuat.gov.tr JavaScript gerektiriyor (EPDK
-   kararları Resmî Gazete'den izleniyor). EPİAŞ doğal gaz ve çevresel piyasa duyuruları varsayılan olarak
+4. **İzlenmeyen kaynaklar:** mevzuat.gov.tr JavaScript gerektiriyor. EPDK kurul kararları listesi sayfa içi
+   AJAX uç noktasından izlenir (v0.1.7). EPİAŞ doğal gaz ve çevresel piyasa duyuruları varsayılan olarak
    kapalı; `check-sources --all` ile doğrulayıp açabilirsiniz.
 5. **Rutin karar ayrımı ve önem seviyesi kural tabanlıdır.** Rutin listesi her zaman bağlantılarıyla verilir.
 6. **Eski–yeni metin karşılaştırması yok.** Değişen maddeler değişiklik metninden çıkarılır.

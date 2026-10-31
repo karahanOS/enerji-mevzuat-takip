@@ -12,6 +12,8 @@
 """
 from __future__ import annotations
 
+import json
+
 import argparse
 import sys
 from datetime import date, timedelta
@@ -163,6 +165,26 @@ def cmd_check_sources(args) -> int:
                             _print(f"     · {doc.title[:90]}  ({doc.url})")
                         if not docs:
                             failures += src.enabled
+                elif src.method == "epdk_kararlar" and src.config.get("page_url"):
+                    from .sources.epdk import parse_leaves
+
+                    page = fetcher.get(src.config["page_url"])
+                    leaves = parse_leaves(page.text)
+                    docs, _ = (None, 0)
+                    mark = "✔" if leaves else "✖"
+                    _print(f"{mark} {src.name}{tag}: {src.config['page_url']} → {len(leaves)} karar kategorisi")
+                    if leaves:
+                        adapter = build_adapter(src)
+                        fid, label = leaves[0]
+                        res = fetcher.post_json(
+                            src.config.get("post_url") or "https://www.epdk.gov.tr/Detay/GetFastAccessList",
+                            {"fId": fid}, referer=src.config["page_url"])
+                        docs, _ = adapter.parse_items(json.loads(res.text), label, since=None)
+                        _print(f"     · örnek kategori '{label}': {len(docs)} karar")
+                        for doc in docs[:3]:
+                            _print(f"     · {doc.title[:90]}  ({doc.url})")
+                    else:
+                        failures += src.enabled
                 elif src.method == "rss" and src.config.get("feed_urls"):
                     from .sources.rss import parse_feed
 
