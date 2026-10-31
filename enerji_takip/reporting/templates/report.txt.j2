@@ -114,6 +114,22 @@ KAYNAK DURUMU
 Taranan belge: {{ docs_scanned }} · İlgisiz bulunan: {{ docs_filtered }} · Analiz dışı: {{ docs_skipped }}{% if ai_usage %} · Bugünkü AI çağrısı: {{ ai_usage }}{% endif %}
 
 {% endif %}
+{% if excluded.irrelevant or excluded.skipped or excluded.skipped_relevant %}
+
+KONTROL İÇİN: ELENEN BELGELER (bu taramada ilk kez görülenler)
+{% for key, label in (("skipped_relevant", "ANALİZ DIŞI BIRAKILDI ama enerjiyle ilgili görünüyor — lütfen kontrol edin"), ("irrelevant", "İlgisiz bulundu"), ("skipped", "Analiz dışı (ilan vb.)")) %}
+{% if excluded[key] %}
+
+{{ label }} ({{ excluded[key ~ "_total"] }})
+{% for d in excluded[key] %}  - {{ d.title }} — {{ d.source }}{% if d.date %}, {{ d.date }}{% endif %}{% if d.reason and key == "irrelevant" %} · {{ d.reason }}{% elif d.section %} · {{ d.section }}{% endif %}{% if d.keywords %} · eşleşen: {{ d.keywords|join(", ") }}{% endif %}
+
+    {{ d.url }}
+{% endfor %}
+{% if excluded[key ~ "_total"] > excluded[key]|length %}  … ve {{ excluded[key ~ "_total"] - excluded[key]|length }} belge daha
+{% endif %}
+{% endif %}
+{% endfor %}
+{% endif %}
 
 --
 {{ disclaimer }}

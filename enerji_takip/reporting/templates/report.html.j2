@@ -148,6 +148,28 @@
 </td></tr>
 {% endif %}
 
+{% if excluded.irrelevant or excluded.skipped or excluded.skipped_relevant %}
+<tr><td style="padding:18px 28px 6px 28px;">
+  <h3 style="font-size:14px;margin:0 0 4px 0;">Kontrol için: elenen belgeler</h3>
+  <p style="font-size:12px;color:#667085;margin:0 0 8px 0;">Bu taramada ilk kez görülen ve analiz edilmeyen belgeler. Yanlışlıkla elenmiş ilgili bir düzenleme görürseniz bağlantıdan açıp kontrol edin.</p>
+  {% for key, label in (("skipped_relevant", "Analiz dışı bırakıldı ama enerjiyle ilgili görünüyor — lütfen kontrol edin"), ("irrelevant", "İlgisiz bulundu"), ("skipped", "Analiz dışı (ilan vb.)")) %}
+  {% set docs = excluded[key] %}
+  {% if docs %}
+  <p style="font-size:12.5px;font-weight:600;margin:10px 0 4px 0;{% if key == 'skipped_relevant' %}color:#b54708;{% endif %}">{{ label }} ({{ excluded[key ~ "_total"] }})</p>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:12px;line-height:1.45;border-collapse:collapse;">
+    {% for d in docs %}
+    <tr><td style="padding:4px 6px;border-bottom:1px solid #f2f4f7;vertical-align:top;">
+      <a href="{{ d.url }}" style="color:#175cd3;">{{ d.title }}</a>
+      <span style="color:#667085;"> — {{ d.source }}{% if d.date %}, {{ d.date }}{% endif %}{% if d.reason and key == "irrelevant" %} · {{ d.reason }}{% elif d.section %} · {{ d.section }}{% endif %}{% if d.keywords %} · eşleşen: {{ d.keywords|join(", ") }}{% endif %}</span>
+    </td></tr>
+    {% endfor %}
+  </table>
+  {% if excluded[key ~ "_total"] > docs|length %}<p style="font-size:12px;color:#667085;margin:4px 0 0 0;">… ve {{ excluded[key ~ "_total"] - docs|length }} belge daha (listeyi uzatmak için REPORT_EXCLUDED_MAX).</p>{% endif %}
+  {% endif %}
+  {% endfor %}
+</td></tr>
+{% endif %}
+
 <tr><td style="padding:16px 28px 24px 28px;">
   <p style="font-size:11.5px;line-height:1.55;color:#667085;margin:0;border-top:1px solid #e4e7ec;padding-top:12px;">{{ disclaimer }}</p>
 </td></tr>
