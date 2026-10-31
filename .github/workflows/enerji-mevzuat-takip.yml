@@ -1,0 +1,137 @@
+# Enerji mevzuatı – günlük tarama (GitHub Actions, ücretsiz)
+#
+# Maliyet: Özel (private) depoda GitHub Free planı ayda 2.000 dakika içerir; bu iş günde
+# birkaç dakika sürer (~100–200 dk/ay). Herkese açık depoda dakika sınırı yoktur, ancak
+# GitHub, 60 gün boyunca depo etkinliği olmayan herkese açık depolarda zamanlanmış işleri
+# otomatik durdurur — bu yüzden ÖZEL depo önerilir.
+#
+# Veri kalıcılığı: SQLite veri tabanı ve rapor kopyaları "veri" adlı ayrı bir dalda tutulur.
+# Dal her çalıştırmada tek commit'lik geçmişle (force push) güncellenir; depo büyümez.
+#
+# Gerekli secret'lar: SMTP_USERNAME, SMTP_PASSWORD, EMAIL_TO, GEMINI_API_KEY ve/veya GROQ_API_KEY
+# İsteğe bağlı: EMAIL_CC, ADMIN_EMAIL; değişken (vars): HTTP_USER_AGENT
+#
+# Kişiselleştirme: depo kökünde config/ klasörü varsa (sources.yaml, taxonomy.yaml, profile.yaml)
+# varsayılanların yerine o dosyalar kullanılır. Oluşturmak için yerelde: enerji-takip init-config
+
+name: Enerji mevzuatı – günlük tarama
+
+on:
+  schedule:
+    - cron: "0 5 * * *"   # 05:00 UTC = 08:00 Europe/Istanbul (Türkiye yaz saati uygulamaz)
+  workflow_dispatch:
+    inputs:
+      gonder:
+        description: "E-posta gönderilsin mi?"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write          # "veri" dalına yazmak için
+
+concurrency:
+  group: enerji-mevzuat-takip
+  cancel-in-progress: false
+
+jobs:
+  tarama:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # Secret'lar tanımlı değilse (ör. şablonun kendi deposu) iş, ağa çıkmadan ve veri dalı
+      # oluşturmadan başarıyla biter. Elle "E-posta gönderilsin mi: hayır" ile tetiklenirse
+      # e-posta secret'ları olmadan da tarama yapılır.
+      - name: Yapılandırma kontrolü
+        id: kontrol
+        env:
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: |
+          if [ -n "$SMTP_USERNAME" ] && [ -n "$SMTP_PASSWORD" ] && [ -n "$EMAIL_TO" ]; then
+            echo "hazir=true" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.gonder }}" = "false" ]; then
+            echo "hazir=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::SMTP_USERNAME, SMTP_PASSWORD ve EMAIL_TO secret'ları tanımlı değil; tarama atlandı. Kurulum: README → 'Günlük e-posta'."
+            echo "hazir=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.kontrol.outputs.hazir == 'true'
+
+      - uses: actions/setup-python@v5
+        if: steps.kontrol.outputs.hazir == 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Bağımlılıklar
+        if: steps.kontrol.outputs.hazir == 'true'
+        run: pip install -r requirements.txt
+
+      - name: OCR araçları (EPDK karar PDF'leri görüntü olarak okunur)
+        if: steps.kontrol.outputs.hazir == 'true'
+        continue-on-error: true
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq poppler-utils tesseract-ocr tesseract-ocr-tur
+
+      - name: Önceki veriyi yükle ("veri" dalı)
+        if: steps.kontrol.outputs.hazir == 'true'
+        run: |
+          mkdir -p veri
+          if git ls-remote --exit-code --heads origin veri >/dev/null 2>&1; then
+            git fetch --depth=1 origin veri
+            git --work-tree=veri checkout FETCH_HEAD -- .
+            git reset -q
+          fi
+          ls -la veri
+
+      - name: Tarama, analiz ve rapor
+        if: steps.kontrol.outputs.hazir == 'true'
+        env:
+          ENERJI_TAKIP_HOME: ${{ github.workspace }}
+          DATABASE_URL: sqlite:///veri/enerji_takip.db
+          REPORT_DIR: veri/raporlar
+          LOG_DIR: veri/loglar
+          SMTP_HOST: smtp.gmail.com
+          SMTP_PORT: "587"
+          SMTP_SECURITY: starttls
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_CC: ${{ secrets.EMAIL_CC }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          HTTP_USER_AGENT: ${{ vars.HTTP_USER_AGENT }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.gonder }}" = "false" ]; then
+            python -m enerji_takip run --no-send
+          else
+            python -m enerji_takip run
+          fi
+
+      - name: Veriyi kaydet ("veri" dalına)
+        if: always() && steps.kontrol.outputs.hazir == 'true'
+        run: |
+          cd veri
+          rm -rf .git
+          git init -q -b veri
+          git add -A
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Veri: $(date -u +%Y-%m-%dT%H:%MZ)" || exit 0
+          for i in 1 2 3; do
+            git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" veri && break
+            sleep 5
+          done
+
+      - name: Yedek (artifact, 14 gün)
+        if: always() && steps.kontrol.outputs.hazir == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: enerji-takip-veri-${{ github.run_id }}
+          path: veri/
+          retention-days: 14
