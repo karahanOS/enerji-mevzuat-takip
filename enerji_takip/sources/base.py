@@ -67,6 +67,29 @@ def pdf_to_text(content: bytes) -> str:
     return normalize_space("\n".join(parts))
 
 
+def docx_to_text(content: bytes) -> str:
+    """Word (.docx) metni: zip içindeki word/document.xml'den paragraflar (ek bağımlılık gerekmez)."""
+    import zipfile
+
+    from defusedxml import ElementTree as SafeET
+
+    ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    with zipfile.ZipFile(io.BytesIO(content)) as z:
+        root = SafeET.fromstring(z.read("word/document.xml"))
+    paras = []
+    for p in root.iter(ns + "p"):
+        parts = []
+        for n in p.iter():
+            if n.tag == ns + "t":
+                parts.append(n.text or "")
+            elif n.tag in (ns + "tab", ns + "br"):
+                parts.append(" ")
+        line = "".join(parts).strip()
+        if line:
+            paras.append(line)
+    return normalize_space("\n".join(paras))
+
+
 def looks_garbled(text: str) -> bool:
     """PDF'lerde yazı tipi kodlaması bozuksa çıkarılan metin kontrol karakterlerinden oluşur."""
     sample = [c for c in text[:4000] if not c.isspace()]
@@ -79,6 +102,10 @@ def looks_garbled(text: str) -> bool:
 def result_to_text(result: FetchResult) -> str:
     if result.is_pdf:
         return pdf_to_text(result.content)
+    if result.is_docx:
+        return docx_to_text(result.content)
+    if result.is_legacy_doc:
+        raise ValueError("Eski Word (.doc) biçimi desteklenmiyor; resmî bağlantıdan açın")
     return html_to_text(result.text)
 
 

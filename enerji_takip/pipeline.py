@@ -231,7 +231,7 @@ class Pipeline:
                     primary_failures.extend(outcome.errors)
             warnings.extend(f"{source.name}: {w}" for w in outcome.warnings)
 
-            baseline = source.method in ("html_listing", "rss") and not source.baseline_done
+            baseline = source.method in ("html_listing", "rss", "epdk_kararlar") and not source.baseline_done
             stats = engine.process(source, build_adapter(source), outcome.documents, baseline=baseline)
             if baseline and outcome.complete:
                 source.baseline_done = True

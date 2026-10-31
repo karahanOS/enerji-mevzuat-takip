@@ -127,10 +127,18 @@ sources:
     name: EPDK – Elektrik Piyasası Kurul Kararları listesi
     url: https://www.epdk.gov.tr/Detay/Icerik/3-0-39-3/son-kurul-kararlari/elektrik
     category: Düzenleyici kurum
-    method: html_listing
-    enabled: false
-    status_if_disabled: javascript_gerekli
-    notes: Karar tablosu JavaScript ile dolduruluyor. Resmî Gazete'de yayımlanan EPDK kurul kararları zaten izleniyor.
+    method: epdk_kararlar
+    notes: >
+      Liste sayfada hazır gelmez; kategori yaprakları sayfa içi AJAX (POST /Detay/GetFastAccessList) ile
+      yüklenir. Kararlar karar numarasıyla tekilleştirilir; Resmî Gazete'de de yayımlananlar tek kayıt olur.
+      İlk çalıştırmada bulunanlar başlangıç sayılır ve raporlanmaz.
+    config:
+      page_url: https://www.epdk.gov.tr/Detay/Icerik/3-0-39-3/son-kurul-kararlari/elektrik
+      post_url: https://www.epdk.gov.tr/Detay/GetFastAccessList
+      download_url: https://www.epdk.gov.tr/Detay/DownloadDocument?id=
+      prefer_file_type: 2   # IsFileType tercihi; bulunamazsa diğeri, o da yoksa ilk belge alınır (tür içerikten anlaşılır)
+      max_age_days: 120     # karar tarihi bundan eski kayıtlar alınmaz
+      institution: Enerji Piyasası Düzenleme Kurumu
 
   - key: mevzuat_bilgi_sistemi
     name: Mevzuat Bilgi Sistemi

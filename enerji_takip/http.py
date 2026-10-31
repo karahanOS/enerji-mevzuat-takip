@@ -41,7 +41,17 @@ class FetchResult:
 
     @property
     def is_pdf(self) -> bool:
-        return "pdf" in self.content_type or self.url.lower().endswith(".pdf")
+        return "pdf" in self.content_type or self.url.lower().endswith(".pdf") or self.content[:5] == b"%PDF-"
+
+    @property
+    def is_docx(self) -> bool:
+        """Word (.docx) = zip kapsayıcı; PDF değilse ve 'PK' ile başlıyorsa."""
+        return not self.is_pdf and (self.content[:2] == b"PK" or "wordprocessingml" in self.content_type)
+
+    @property
+    def is_legacy_doc(self) -> bool:
+        """Eski ikili Word biçimi (OLE2); metni çıkarılamaz."""
+        return self.content[:4] == b"\xd0\xcf\x11\xe0"
 
 
 _META_CHARSET_RE = re.compile(rb"""<meta[^>]+charset\s*=\s*["']?([\w-]+)""", re.IGNORECASE)
@@ -121,6 +131,16 @@ class Fetcher:
         self._last_request[host] = time.monotonic()
 
     def get(self, url: str, attempts: int = 3) -> FetchResult:
+        return self.request("GET", url, attempts=attempts)
+
+    def post_json(self, url: str, payload: dict, *, referer: str | None = None, attempts: int = 3) -> FetchResult:
+        """JSON gövdeli POST (kurum sitelerinin sayfa içi AJAX uç noktaları için)."""
+        headers = {"Accept": "application/json, text/javascript, */*; q=0.01", "X-Requested-With": "XMLHttpRequest"}
+        if referer:
+            headers["Referer"] = referer
+        return self.request("POST", url, json=payload, headers=headers, attempts=attempts)
+
+    def request(self, method: str, url: str, *, json=None, headers: dict | None = None, attempts: int = 3) -> FetchResult:
         if not self.robots_allowed(url):
             raise RobotsDisallowed(
                 f"robots.txt bu adresin otomatik taranmasına izin vermiyor: {url}"
@@ -131,7 +151,7 @@ class Fetcher:
         for attempt in range(1, attempts + 1):
             self._throttle(host)
             try:
-                resp = self.client.get(url)
+                resp = self.client.request(method, url, json=json, headers=headers)
             except httpx.HTTPError as exc:
                 last_error = exc
                 log.warning("İstek hatası (%s/%s) %s: %s", attempt, attempts, url, exc)
@@ -147,9 +167,9 @@ class Fetcher:
                     raise FetchError(f"HTTP {resp.status_code}: {url}", resp.status_code)
                 else:
                     ctype = resp.headers.get("content-type", "").lower()
-                    text = "" if ("pdf" in ctype or url.lower().endswith(".pdf")) else decode_html(
-                        resp.content, resp.charset_encoding
-                    )
+                    binary = "pdf" in ctype or url.lower().endswith(".pdf") or resp.content[:5] == b"%PDF-" or resp.content[:2] == b"PK" \
+                        or "wordprocessingml" in ctype or "msword" in ctype or "octet-stream" in ctype
+                    text = "" if binary else decode_html(resp.content, resp.charset_encoding)
                     return FetchResult(str(resp.url), resp.status_code, resp.content, text, ctype)
             if attempt < attempts:
                 time.sleep(min(2 ** attempt, 10))
