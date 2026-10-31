@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from datetime import date
 
-from enerji_takip.config import Settings, get_settings, set_settings
+from enerji_takip import config as config_mod
+from enerji_takip.config import Settings, get_settings
 from enerji_takip.http import FetchResult
 from enerji_takip.sources import base, ocr
 from enerji_takip.sources.base import FetchedDocument, SourceAdapter
@@ -31,7 +32,7 @@ def _patch(monkeypatch, ocr_text):
     monkeypatch.setattr(ocr, "ocr_pdf", lambda content, **kw: ocr_text)
     st = Settings()
     st.ocr_enabled = True
-    set_settings(st)
+    monkeypatch.setattr(config_mod, "_settings", st)  # test bitince otomatik geri alınır, diğer testlere sızmaz
 
 
 def test_bozuk_pdf_ocr_ile_okunur(monkeypatch):
