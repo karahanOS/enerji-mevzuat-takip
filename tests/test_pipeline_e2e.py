@@ -102,6 +102,14 @@ def test_enerji_mevzuati_tespit_analiz_ve_eposta(settings, smtp_server):
     assert "https://www.resmigazete.gov.tr/eskiler/2026/10/20261023-9.htm" in html  # rutin kararın bağlantısı
     assert not _alerts(smtp_server)
 
+    # Kontrol amaçlı: elenen belgeler ad + kaynak ile listelenir
+    for needle in ["Kontrol için: elenen belgeler", "İlgisiz bulundu (", "Analiz dışı (ilan vb.) (", "Üniversitesi", "Resmî Gazete"]:
+        assert needle in html, needle
+    text = mails[0]["msg"].get_body(("plain",)).get_content()
+    assert "KONTROL İÇİN: ELENEN BELGELER" in text and "Üniversitesi" in text
+    # Rapora giren ilgili düzenlemeler elenenler listesinde tekrar yer almaz
+    assert html.index("Kontrol için: elenen belgeler") > html.index(DUY)
+
 
 def test_ertesi_gun_yalnizca_yeni_kayitlar_ve_kaynaklar_arasi_tekillestirme(settings, smtp_server):
     with respx.mock(assert_all_called=False) as router:
@@ -223,3 +231,44 @@ def test_ai_olmadan_kural_tabanli_rapor(settings, smtp_server):
     with session_scope() as s:
         duy = _changes(s)[DUY]
         assert duy.status == "inceleme" and duy.importance in ("YUKSEK", "ORTA")
+
+
+def test_elenen_belge_listesi_kapatilabilir(settings, smtp_server):
+    settings.report_excluded_max = 0
+    with respx.mock(assert_all_called=False) as router:
+        register_all(router)
+        make_pipeline(settings, fake_chain()).run()
+    mails = _reports(smtp_server)
+    assert mails and "Kontrol için: elenen belgeler" not in _html(mails[0])
+
+
+def test_analiz_disi_ama_ilgili_gorunen_belgeler_ayri_listelenir(settings, smtp_server):
+    """İlan bölümünde olup başlığı enerji konusuyla eşleşen belge, rapor kontrol listesinde öne çıkarılır."""
+    from datetime import datetime, timedelta, timezone
+
+    from enerji_takip.config import config_path
+    from enerji_takip.db import init_db, session_scope
+    from enerji_takip.detection.relevance import Taxonomy
+    from enerji_takip.models import RegulatoryDocument, RegulatorySource
+    from enerji_takip.reporting.builder import excluded_documents
+
+    init_db()
+    tax = Taxonomy.load(config_path("taxonomy.yaml"))
+    with session_scope() as s:
+        src = RegulatorySource(key="resmi_gazete", name="Resmî Gazete", url="https://x.test", category="resmi", method="html")
+        s.add(src)
+        s.flush()
+        for i, (title, rel) in enumerate([
+            ("Elektrik Üretim Tesisi Yapımı İhale İlanı", "atlandi"),
+            ("Üniversite Yemek Hizmeti İhale İlanı", "atlandi"),
+            ("Optisyenlik Yönetmeliği", "alakasiz"),
+        ]):
+            s.add(RegulatoryDocument(source_id=src.id, dedup_key=f"k{i}", external_id=str(i), title=title, url=f"https://x.test/{i}",
+                                     doc_type="ILAN", relevance=rel, section="ILAN",
+                                     first_seen_at=datetime.now(timezone.utc)))
+    with session_scope() as s:
+        out = excluded_documents(s, datetime.now(timezone.utc) - timedelta(hours=1), 50, tax)
+    assert [d["title"] for d in out["skipped_relevant"]] == ["Elektrik Üretim Tesisi Yapımı İhale İlanı"]
+    assert out["skipped_relevant"][0]["keywords"] and out["skipped_relevant"][0]["source"] == "Resmî Gazete"
+    assert [d["title"] for d in out["skipped"]] == ["Üniversite Yemek Hizmeti İhale İlanı"]
+    assert out["skipped_total"] == 1 and out["skipped_relevant_total"] == 1 and out["irrelevant_total"] == 1
