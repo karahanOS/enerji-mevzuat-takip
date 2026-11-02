@@ -58,8 +58,16 @@ def classify(change: RegulatoryChange, analysis: dict | None, today: date, taxon
     if analysis is None:
         # AI yoksa temkinli kural tabanlı sınıflandırma; inceleme istenir
         if core:
-            score += 2
-            reasons.append("+2 AI analizi yok; ana ilgi alanında düzenleme (temkinli)")
+            text = getattr(getattr(change, "document", None), "full_text", None) or ""
+            from .detection.engine import MIN_TEXT_DENSITY
+
+            sparse = len(text) > 1500 and taxonomy.density(text) < MIN_TEXT_DENSITY
+            if sparse:
+                reasons.append(f"+0 AI analizi yok; enerji kavramları metinde seyrek (yoğunluk {taxonomy.density(text):.2f}) "
+                               "→ konu yalnızca kısmen enerjiyle ilgili olabilir")
+            else:
+                score += 2
+                reasons.append("+2 AI analizi yok; ana ilgi alanında düzenleme (temkinli)")
         if change.change_type in ("YENI_KANUN", "YENI_YONETMELIK") or (
                 change.change_type == "DEGISIKLIK" and change.amended_regulation and "yönetmelik" in change.amended_regulation.lower()):
             score += 1
