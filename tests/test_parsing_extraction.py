@@ -303,3 +303,29 @@ def test_rg_sayisi_basliktan_alinir_ve_baska_sayilara_takilmaz():
     _, meta2 = parse_fihrist("<html><body>Sayı : 2023 ve Sayı : 33355</body></html>",
                              "https://www.resmigazete.gov.tr/eskiler/2026/08/20260829.htm")
     assert meta2["rg_number"] == "33355"
+
+
+def test_depolama_tarifesi_tadil_kararlari_rutin_sayilir():
+    """RG 08.08, 14.08 ve 04.09.2026: tek şirketin depolama tesisi tarifesinin tadili (karar 14781, 14803, 14847)."""
+    from enerji_takip.config import config_path
+    from enerji_takip.detection.relevance import Taxonomy
+
+    tax = Taxonomy.load(config_path("taxonomy.yaml"))
+    kararlar = [
+        "Enerji Piyasası Düzenleme Kurulunun 06/08/2026 tarihli toplantısında; Petrol Ofisi Anonim Şirketi'nin; "
+        "DEP/474-8/10366 sayılı Depolama Lisansı kapsamında Deniz Mahallesi Petrol Ofisi Caddesi No:39 Derince/KOCAELİ "
+        "adresinde faaliyette bulunan Petrol Ofisi A.Ş. Derince Terminali Depolama Tesisine ilişkin depolama tarifesinin "
+        "ekteki şekilde tadil edilerek onaylanmasına, karar verilmiştir. EK- Petrol Ofisi A.Ş. - Derince Terminali Depolama Tarifesi.",
+        "Enerji Piyasası Düzenleme Kurulunun 13/08/2026 tarihli toplantısında; Habaş Petrol Ürünleri San. ve Tic. A.Ş.'ye ait "
+        "LPG-DPO/761-2/03265 sayılı LPG depolama lisansı ile Kocaeli Tesisi için LPG depolama tarifesinin ekte belirtildiği "
+        "şekilde tadil edilerek onaylanmasına, karar verilmiştir.",
+        "Enerji Piyasası Düzenleme Kurulunun 03/09/2026 tarihli toplantısında; Lokal Enerji Anonim Şirketi'ne ait "
+        "DEP/7220-4/38844 numaralı depolama lisansı ile Kırıkkale Terminali için depolama tarifesinin ekte belirtildiği "
+        "şekilde tadil edilerek onaylanmasına, karar verilmiştir.",
+    ]
+    for k in kararlar:
+        ok, why = tax.is_routine(k, "KURUL_KARARI")
+        assert ok, k[:80]
+    genel = ("Enerji Piyasası Düzenleme Kurulunun tarihli toplantısında; tüm depolama lisansı sahiplerine uygulanacak "
+             "depolama tarifeleri usul ve esasları yönetmeliği kabul edilmiştir. Anonim şirketler uyar.")
+    assert tax.is_routine(genel, "KURUL_KARARI")[0] is False

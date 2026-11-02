@@ -268,3 +268,22 @@ def test_rutin_karar_her_zaman_dusuk():
 def test_tek_sirket_etkisi_dusuk_ve_ai_farki_incelemeye():
     level, _, _, review = classify(_chg(cats=["enerji_genel"]), _a(impact="sinirli", aspects=(), ai="KRITIK"), TODAY, TAX)
     assert level in ("DUSUK", "ORTA") and review
+
+
+def test_ai_yokken_enerji_kavrami_seyrek_uzun_yonetmelik_yuksek_olmaz():
+    """Coğrafi Veri İzinleri Yönetmeliği (RG 14.10.2026): 28 bin karakterde yalnızca dağıtım lisansı sahiplerine ait tek madde."""
+    from enerji_takip.models import RegulatoryDocument
+
+    govde = "Coğrafi veri sorumluluk alanı, izin başvurusu ve değerlendirme usulleri belirlenmiştir. " * 400
+    ilgili = "Elektrik Piyasası Kanunu kapsamında dağıtım lisansı verilen tüzel kişiler Enerji Piyasası Düzenleme Kurumu izni alır. "
+    chg = RegulatoryChange(categories=["elektrik_piyasasi"], change_aspects=[], effective_dates=[], status="analiz_edildi",
+                           change_type="YENI_YONETMELIK")
+    chg.document = RegulatoryDocument(title="Coğrafi Veri İzinleri Yönetmeliği", full_text=govde + ilgili + govde)
+    level, _, reasons, review = classify(chg, None, TODAY, TAX)
+    assert level == "ORTA" and review and any("seyrek" in r for r in reasons)
+    # yoğun enerji metni davranışı değişmez
+    chg2 = RegulatoryChange(categories=["elektrik_piyasasi"], change_aspects=[], effective_dates=[], status="analiz_edildi",
+                            change_type="YENI_YONETMELIK")
+    chg2.document = RegulatoryDocument(title="Elektrik Piyasası Lisans Yönetmeliği",
+                                       full_text="Elektrik piyasası lisans, YEKDEM, dengeleme ve uzlaştırma, tarife bedeli. " * 60)
+    assert classify(chg2, None, TODAY, TAX)[0] == "YUKSEK"

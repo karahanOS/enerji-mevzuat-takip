@@ -253,10 +253,12 @@ routine:
   # piyasa geneli anlamına gelmez; aşağıdaki işaretçi ve kalıp birlikte varsa engelleyiciler yok sayılır.
   company_specific_markers:
     - lisansı sahibi
+    - depolama lisansı
   company_specific_patterns:
     - tarifelerine yönelik alınmış olan
     - tarifesine yönelik alınmış olan
     - kurul kararının aşağıda yer verildiği şekilde revize
+    - depolama tarifesinin ekte
   market_wide_markers:
     - tüm piyasa katılımcı
     - usul ve esas
