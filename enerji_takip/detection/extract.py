@@ -30,6 +30,7 @@ CHANGE_TYPE_LABELS = {
     "YARGI_KARARI": "Yargı kararı (Anayasa Mahkemesi vb.)",
     "ULUSLARARASI_ANLASMA": "Milletlerarası anlaşma",
     "KURUM_DUYURUSU": "Kurum duyurusu",
+    "KONSOLIDE_GUNCELLEME": "Konsolide metin güncellendi (eski–yeni)",
     "DIGER": "Diğer düzenleme",
 }
 
@@ -63,6 +64,7 @@ DOC_TYPE_LABELS = {
     "KARAR": "Karar",
     "ILAN": "İlan",
     "DUYURU": "Kurum Duyurusu",
+    "KONSOLIDE": "Konsolide Mevzuat Metni",
     "DIGER": "Diğer",
 }
 
@@ -87,7 +89,22 @@ def _fix_stem(name: str) -> str:
     return name
 
 
+_KONSOLIDE_LIST_RE = re.compile(r"^Değişen maddeler: (?P<list>.+?)\.?$", re.M)
+_KONSOLIDE_ITEM_RE = re.compile(r"(?P<madde>[^,()]+?) \((?P<islem>değiştirildi|eklendi|çıkarıldı)\)")
+
+
+def konsolide_articles(text: str) -> list[dict]:
+    """Konsolide metin karşılaştırmasının 'Değişen maddeler:' satırı → [{madde, islem}]."""
+    m = _KONSOLIDE_LIST_RE.search(text[:3000])
+    if not m:
+        return []
+    return [{"madde": x.group("madde").strip(), "islem": x.group("islem")}
+            for x in _KONSOLIDE_ITEM_RE.finditer(m.group("list"))]
+
+
 def detect_change_type(title: str, doc_type: str) -> str:
+    if doc_type == "KONSOLIDE":
+        return "KONSOLIDE_GUNCELLEME"
     t = tr_lower(title)
     if "yürürlükten kaldırılmas" in t:
         return "YURURLUKTEN_KALDIRMA"
@@ -106,6 +123,7 @@ def detect_change_type(title: str, doc_type: str) -> str:
         "YARGI_KARARI": "YARGI_KARARI",
         "ANDLASMA": "ULUSLARARASI_ANLASMA",
         "DUYURU": "KURUM_DUYURUSU",
+        "KONSOLIDE": "KONSOLIDE_GUNCELLEME",
     }.get(doc_type, "DIGER")
 
 
@@ -409,6 +427,9 @@ def extract_all(title: str, doc_type: str, text: str, pub: date | None) -> Extra
     ctype = detect_change_type(title, doc_type)
     name, ref = extract_amended_regulation(title, text)
     articles = extract_amended_articles(text) if ctype in ("DEGISIKLIK", "YURURLUKTEN_KALDIRMA") else []
+    if ctype == "KONSOLIDE_GUNCELLEME":
+        # Metindeki eski RG atıfları değişikliği yapan düzenlemeyi göstermez; atıf motor tarafından işaretten kurulur.
+        name, ref, articles = title.split(" — ")[0], None, konsolide_articles(text)
     return Extraction(
         change_type=ctype,
         amended_regulation=name,

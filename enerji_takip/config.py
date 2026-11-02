@@ -131,6 +131,7 @@ class Settings:
     http_user_agent: str = f"enerji-mevzuat-takip/{__version__} (+{PROJECT_URL})"
     http_timeout_seconds: int = 30
     http_min_interval_seconds: float = 1.5
+    source_retry_delay_seconds: int = 60  # eksik kalan kaynaklar için çalıştırma sonunda tek yeniden deneme
     respect_robots_txt: bool = True
     rg_rescan_days: int = 2
     rg_max_backfill_days: int = 14
@@ -189,6 +190,7 @@ class Settings:
         s.http_user_agent = _env("HTTP_USER_AGENT", s.http_user_agent)
         s.http_timeout_seconds = _env_int("HTTP_TIMEOUT_SECONDS", s.http_timeout_seconds)
         s.http_min_interval_seconds = float(_env("HTTP_MIN_INTERVAL_SECONDS", str(s.http_min_interval_seconds)))
+        s.source_retry_delay_seconds = _env_int("SOURCE_RETRY_DELAY_SECONDS", s.source_retry_delay_seconds)
         s.respect_robots_txt = _env_bool("RESPECT_ROBOTS_TXT", s.respect_robots_txt)
         s.rg_rescan_days = _env_int("RG_RESCAN_DAYS", s.rg_rescan_days)
         s.rg_max_backfill_days = _env_int("RG_MAX_BACKFILL_DAYS", s.rg_max_backfill_days)

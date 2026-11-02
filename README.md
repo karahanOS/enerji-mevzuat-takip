@@ -228,11 +228,16 @@ sağlayıcıya geçilir; hepsi doluysa rapor AI olmadan gider ve analiz ertesi g
    yoksa taramaz ve bunu raporlar.
 3. **GitHub Actions IP'leri yurt dışındadır.** Bazı kamu siteleri yurt dışı erişimi kısıtlayabilir. Böyle bir
    kaynak Actions'ta sürekli "erişilemedi" görünürse yerelde çalıştırın.
-4. **İzlenmeyen kaynaklar:** mevzuat.gov.tr JavaScript gerektiriyor. EPDK kurul kararları listesi sayfa içi
+4. **Kaynak notları:** mevzuat.gov.tr'de yalnızca `sources.yaml` izleme listesindeki mevzuatın konsolide metni
+   izlenir (v0.1.11); site değişikliği RG'den günler-haftalar sonra işler. EPDK kurul kararları listesi sayfa içi
    AJAX uç noktasından izlenir (v0.1.7); liste büyük ölçüde Resmî Gazete'nin aynasıdır (gecikme ~5 gün). EPİAŞ doğal gaz ve çevresel piyasa duyuruları varsayılan olarak
    kapalı; `check-sources --all` ile doğrulayıp açabilirsiniz.
 5. **Rutin karar ayrımı ve önem seviyesi kural tabanlıdır.** Rutin listesi her zaman bağlantılarıyla verilir.
-6. **Eski–yeni metin karşılaştırması yok.** Değişen maddeler değişiklik metninden çıkarılır.
+6. **Eski–yeni metin karşılaştırması yalnızca izleme listesindeki mevzuat için var.** Resmî Gazete kayıtlarında
+   değişen maddeler değişiklik metninden çıkarılır; konsolide metin güncellenince (mevzuat.gov.tr) değişen
+   maddelerin ESKİ/YENİ hâli ayrı bir "Konsolide metin güncellendi" kaydında verilir.
+7. **Geçici erişim sorunları:** robots.txt dahil her istek 3 kez denenir; ilk geçişte hiç belge alınamayan
+   kaynak çalıştırma sonunda `SOURCE_RETRY_DELAY_SECONDS` (60 sn) beklenip bir kez daha taranır.
 
 ---
 

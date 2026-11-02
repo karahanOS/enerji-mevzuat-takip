@@ -338,3 +338,48 @@ def test_birlesik_pdf_her_karar_icin_ayri_belge_ve_degisiklik_uretir(settings):
         # ikinci tarama: yeni kayıt oluşmaz
         stats2 = eng.process(src, Ad("resmi_gazete"), [fd])
         assert stats2.new_changes == 0
+
+
+def test_gecici_robots_zaman_asimi_yeniden_denenir(settings, monkeypatch):
+    """robots.txt'nin tek bir zaman aşımı kaynağın tamamını düşürmez (2026-11-02 EPİAŞ/ETKB)."""
+    from enerji_takip import http as http_mod
+    from enerji_takip.http import Fetcher
+
+    monkeypatch.setattr(http_mod.time, "sleep", lambda *_: None)
+    with respx.mock(assert_all_called=False) as router:
+        robots = router.get("https://www.epias.com.tr/robots.txt")
+        robots.side_effect = [httpx.ReadTimeout("timed out"), httpx.Response(200, text="User-agent: *\nAllow: /\n")]
+        router.get("https://www.epias.com.tr/x").respond(200, text="<html>ok</html>")
+        res = Fetcher(settings).get("https://www.epias.com.tr/x")
+    assert "ok" in res.text and robots.call_count == 2
+
+
+def test_eksik_kaynak_calistirma_sonunda_bir_kez_daha_taranir(settings, smtp_server):
+    from tests.conftest import EPIAS_LIST, FIX, register_epias_routes, register_etkb_routes, register_rg_routes
+
+    with respx.mock(assert_all_called=False) as router:
+        register_rg_routes(router)
+        register_epias_routes(router)
+        register_etkb_routes(router)
+        ok = httpx.Response(200, text=(FIX / "listing" / "epias_v1.html").read_text(encoding="utf-8"),
+                            headers={"content-type": "text/html; charset=utf-8"})
+        # İlk geçişte üç deneme de 503; çalıştırma sonundaki yeniden denemede site geri gelmiş.
+        router.get(EPIAS_LIST).side_effect = [httpx.Response(503)] * 3 + [ok]
+        result = make_pipeline(settings, fake_chain()).run()
+    assert result.complete and result.status == "basarili"
+    assert not _reports(smtp_server)[0]["msg"]["Subject"].endswith("| EKSİK TARAMA")
+    with session_scope() as s:
+        epias = s.scalar(select(RegulatorySource).where(RegulatorySource.key == "epias_elektrik_duyurulari"))
+        assert epias.access_status == "erisilebilir" and epias.last_error is None
+
+
+def test_yeniden_deneme_kapatilabilir(settings, smtp_server):
+    from tests.conftest import register_epias_routes, register_etkb_routes, register_rg_routes
+
+    settings.source_retry_delay_seconds = -1
+    with respx.mock(assert_all_called=False) as router:
+        register_rg_routes(router)
+        register_epias_routes(router, status=503)
+        register_etkb_routes(router)
+        result = make_pipeline(settings, fake_chain()).run()
+    assert not result.complete

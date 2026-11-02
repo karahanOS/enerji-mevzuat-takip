@@ -141,10 +141,42 @@ sources:
       institution: Enerji Piyasası Düzenleme Kurumu
 
   - key: mevzuat_bilgi_sistemi
-    name: Mevzuat Bilgi Sistemi
+    name: Mevzuat Bilgi Sistemi – konsolide metinler
     url: https://www.mevzuat.gov.tr/
     category: Konsolide metinler
-    method: html_listing
-    enabled: false
-    status_if_disabled: javascript_gerekli
-    notes: İçerik JavaScript ile yükleniyor; belgelenmiş API/RSS yok.
+    method: mevzuat_konsolide
+    notes: >-
+      Arayüz JavaScript ile çalışır; metin sunucuda üretilen iframe sayfasından (MevzuatFihristDetayIframe) alınır.
+      İlk taramada her mevzuatın maddeleri taban olarak saklanır; sonra bir madde değişirse eski–yeni
+      karşılaştırmasıyla "konsolide metin güncellendi" kaydı açılır. Site değişikliği RG'den birkaç gün-hafta
+      sonra işler; asıl bildirim Resmî Gazete kaynağından gelir.
+    config:
+      institution: Mevzuat Bilgi Sistemi (Cumhurbaşkanlığı)
+      # tur: 1 Kanun, 7 Yönetmelik (Bakanlık/kurum), 9 Tebliğ, 19 CB Kararnamesi, 21 Kurum ve Kuruluş Yönetmeliği.
+      # mevzuat_no ve tur, mevzuat.gov.tr'deki adresten okunur: /mevzuat?MevzuatNo=6446&MevzuatTur=1&MevzuatTertip=5
+      # ('no' yerine 'mevzuat_no' kullanılır: YAML çıplak 'no' anahtarını false olarak okur.)
+      items:
+        - {mevzuat_no: 6446, tur: 1, name: Elektrik Piyasası Kanunu}
+        - {mevzuat_no: 4646, tur: 1, name: Doğal Gaz Piyasası Kanunu}
+        - {mevzuat_no: 5015, tur: 1, name: Petrol Piyasası Kanunu}
+        - {mevzuat_no: 5307, tur: 1, name: Sıvılaştırılmış Petrol Gazları (LPG) Piyasası Kanunu}
+        - {mevzuat_no: 5346, tur: 1, name: Yenilenebilir Enerji Kaynaklarının Elektrik Enerjisi Üretimi Amaçlı Kullanımına İlişkin Kanun}
+        - {mevzuat_no: 5627, tur: 1, name: Enerji Verimliliği Kanunu}
+        - {mevzuat_no: 7552, tur: 1, name: İklim Kanunu}
+        - {mevzuat_no: 4628, tur: 1, name: Enerji Piyasası Düzenleme Kurumunun Teşkilat ve Görevleri Hakkında Kanun}
+        - {mevzuat_no: 18985, tur: 7, name: Elektrik Piyasası Lisans Yönetmeliği}
+        - {mevzuat_no: 12985, tur: 7, name: Elektrik Piyasası Dengeleme ve Uzlaştırma Yönetmeliği}
+        - {mevzuat_no: 31502, tur: 7, name: Elektrik Piyasasında Lisanssız Elektrik Üretim Yönetmeliği}
+        - {mevzuat_no: 24630, tur: 7, name: Elektrik Piyasası Tüketici Hizmetleri Yönetmeliği}
+        - {mevzuat_no: 24112, tur: 7, name: Elektrik Piyasası Yan Hizmetler Yönetmeliği}
+        - {mevzuat_no: 39153, tur: 7, name: Elektrik Piyasası Kapasite Mekanizması Yönetmeliği}
+        - {mevzuat_no: 19357, tur: 7, name: Elektrik Piyasası Bağlantı ve Sistem Kullanım Yönetmeliği}
+        - {mevzuat_no: 40876, tur: 7, name: Organize Sanayi Bölgelerinin ve Endüstri Bölgelerinin Elektrik Piyasası Faaliyetlerine İlişkin Yönetmelik}
+        - {mevzuat_no: 5717, tur: 7, name: Doğal Gaz Piyasası Lisans Yönetmeliği}
+        - {mevzuat_no: 5712, tur: 7, name: Doğal Gaz Piyasası Dağıtım ve Müşteri Hizmetleri Yönetmeliği}
+        - {mevzuat_no: 22932, tur: 7, name: Doğal Gaz Piyasası Tarifeler Yönetmeliği}
+        - {mevzuat_no: 5719, tur: 7, name: Petrol Piyasası Lisans Yönetmeliği}
+        - {mevzuat_no: 24729, tur: 7, name: Enerji Verimliliği Denetim Yönetmeliği}
+        - {mevzuat_no: 46261, tur: 7, name: Türkiye Emisyon Ticaret Sistemi Yönetmeliği}
+        - {mevzuat_no: 46347, tur: 7, name: Türkiye Emisyon Ticaret Sistemi Piyasasının İşletilmesine İlişkin Yönetmelik}
+        - {mevzuat_no: 20146124, tur: 21, name: Enerji Piyasası Düzenleme Kurumu Teşkilat Yönetmeliği}

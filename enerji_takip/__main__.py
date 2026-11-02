@@ -185,6 +185,28 @@ def cmd_check_sources(args) -> int:
                             _print(f"     · {doc.title[:90]}  ({doc.url})")
                     else:
                         failures += src.enabled
+                elif src.method == "mevzuat_konsolide" and src.config.get("items"):
+                    from .sources.mevzuat import ARTICLE_HEAD_RE, extract_markers, iframe_url, split_into_articles
+                    from .text_utils import html_to_text
+
+                    bad = 0
+                    for it in src.config["items"]:
+                        no = it.get("mevzuat_no") or it.get("no")
+                        url = iframe_url(int(it["tur"]), str(no), int(it.get("tertip", 5)))
+                        try:
+                            text = html_to_text(fetcher.get(url).text)
+                        except FetchError as exc:
+                            text, err = "", str(exc)
+                        else:
+                            err = "madde başlığı bulunamadı" if not ARTICLE_HEAD_RE.search(text) else ""
+                        if err:
+                            bad += 1
+                            _print(f"✖ {src.name}{tag}: {it.get('name', no)} → {err}  ({url})")
+                        else:
+                            _print(f"✔ {src.name}{tag}: {it.get('name', no)} → {len(text):,} karakter, "
+                                   f"{len(split_into_articles(text))} madde, {len(extract_markers(text))} değişiklik işareti")
+                    if bad:
+                        failures += src.enabled
                 elif src.method == "rss" and src.config.get("feed_urls"):
                     from .sources.rss import parse_feed
 

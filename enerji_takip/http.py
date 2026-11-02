@@ -107,12 +107,20 @@ class Fetcher:
 
     def _load_robots(self, host: str) -> urllib.robotparser.RobotFileParser | None:
         robots_url = urljoin(host, "/robots.txt")
-        self._throttle(host)
-        try:
-            resp = self.client.get(robots_url)
-        except httpx.HTTPError as exc:
-            # RFC 9309: robots.txt'ye ulaşılamıyorsa tarama yapılmamalı
-            raise FetchError(f"robots.txt alınamadı ({robots_url}): {exc}") from exc
+        resp = None
+        attempts = 3
+        for attempt in range(1, attempts + 1):
+            self._throttle(host)
+            try:
+                resp = self.client.get(robots_url)
+                break
+            except httpx.HTTPError as exc:
+                # Geçici zaman aşımları tek denemede kaynağın tamamını düşürmesin.
+                log.warning("robots.txt isteği başarısız (%s/%s) %s: %s", attempt, attempts, robots_url, exc)
+                if attempt == attempts:
+                    # RFC 9309: robots.txt'ye ulaşılamıyorsa tarama yapılmamalı
+                    raise FetchError(f"robots.txt alınamadı ({robots_url}): {exc}") from exc
+                time.sleep(min(2 ** attempt, 10))
         if 400 <= resp.status_code < 500:
             return None
         if resp.status_code >= 500:

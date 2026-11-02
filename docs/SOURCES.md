@@ -17,11 +17,16 @@ aracıyla doğrulandı. Sizin bağlantınızdan (veya GitHub Actions'tan) sonuç
 | EPİAŞ – Doğal Gaz Duyuruları | `epias.com.tr/spot-dogal-gaz-piyasasi/dogal-gaz-piyasasi-duyurulari` | HTML liste | **Kapalı.** Adres doğrulandı, liste yapısı doğrulanmadı. `check-sources --all` ✔ gösterirse `enabled: true` yapın. |
 | EPİAŞ – Çevresel Piyasalar | `epias.com.tr/cevresel-piyasalar/cevresel-piyasa-duyurulari` | HTML liste | **Kapalı.** Aynı nedenle. |
 | EPDK – Elektrik Kurul Kararları listesi | `…/3-0-39-3/son-kurul-kararlari/elektrik` | Sayfa içi AJAX: `POST /Detay/GetFastAccessList {"fId":…}` (67 kategori yaprağı), belge `/Detay/DownloadDocument?id=…` (çoğu docx, bazıları PDF) | **Etkin (v0.1.7).** Karar numarasıyla tekilleştirilir; son 120 günün kararları alınır, ilk çalıştırmada bulunanlar başlangıç sayılır. Eski `.doc` biçimi okunamaz. 31.10.2026'da tarayıcıdan doğrulandı: 67 yaprak, 1.952 kayıt (1.883 benzersiz karar no), son 12 ayda 51 karar; 44'ü Resmî Gazete'de de var (ortalama gecikme 5 gün), 7'si yok (OSB tarifeleri). |
-| Mevzuat Bilgi Sistemi | `mevzuat.gov.tr` | — | **Kapalı.** JavaScript gerekiyor, belgelenmiş API yok. |
+| Mevzuat Bilgi Sistemi – konsolide metinler | `mevzuat.gov.tr/anasayfa/MevzuatFihristDetayIframe?MevzuatTur=…&MevzuatNo=…&MevzuatTertip=5` | Sunucuda üretilen iframe HTML'i (arayüz JavaScript'li, metin değil); çerez/oturum gerekmez | **Etkin (v0.1.11).** Yalnızca izleme listesi (`config.items`, varsayılan 8 kanun + 16 yönetmelik). İlk taramada maddeler taban olarak saklanır; bir madde değişirse ESKİ/YENİ karşılaştırmalı "Konsolide metin güncellendi" kaydı açılır, yeni `(Değişik:RG-…)` işaretinden değişikliği yapan RG bulunur. Yalnızca başlık veya sondaki RG tablosu değişirse raporlanmaz. 02.11.2026'da tarayıcıdan doğrulandı: 24 kalemin hepsi HTTP 200, madde başlıkları okunuyor; robots.txt yalnızca Googlebot için `Noindex` içeriyor. GitHub Actions'tan erişim ilk çalıştırmada doğrulanacak. |
 
 Kaynak listesi `enerji_takip/varsayilan/sources.yaml` içindedir; değiştirmek için `enerji-takip init-config`
 ile `config/sources.yaml` oluşturun. Kapalı kaynaklar raporun "Kaynak durumu" tablosunda "İzlenmiyor" olarak görünür. Böylece hangi kaynağın
 kontrol **edilmediği** her gün görülür.
+
+**İzleme listesine mevzuat eklemek:** mevzuat.gov.tr'de mevzuatı açın; adres `…/mevzuat?MevzuatNo=6446&MevzuatTur=1&MevzuatTertip=5`
+biçimindedir. `config/sources.yaml` içinde `items` listesine `{mevzuat_no: 6446, tur: 1, name: …}` ekleyin
+(`no` değil `mevzuat_no`: YAML çıplak `no` anahtarını `false` okur). Tür kodları: 1 Kanun, 7 Yönetmelik,
+9 Tebliğ, 19 CB Kararnamesi, 21 Kurum ve Kuruluş Yönetmeliği.
 
 **Tekilleştirme:** EPİAŞ veya TEİAŞ duyurusu, Resmî Gazete'de son 10 günde tespit edilmiş bir EPDK kararının
 numarasına başlıkta veya metnin başında atıf yapıyorsa ikinci kez bildirilmez.
