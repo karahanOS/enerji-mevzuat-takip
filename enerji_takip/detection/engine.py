@@ -52,6 +52,9 @@ def canonical_url(url: str) -> str:
 def document_dedup_key(fd: FetchedDocument) -> str:
     if fd.source_key == "resmi_gazete":
         return sha256(f"rg|{fd.external_id}")
+    if fd.doc_type == "KONSOLIDE":
+        # Konsolide metnin adresi hiç değişmez; her güncelleme kendi metin özetiyle ayrı belgedir.
+        return sha256(f"konsolide|{fd.external_id}")
     return sha256(f"url|{canonical_url(fd.url)}")
 
 
@@ -191,10 +194,14 @@ class ChangeDetectionEngine:
             stats.baseline += 1
             return
 
-        rel = self.taxonomy.assess_title(
-            fd.title, fd.doc_type, fd.section, skip_reason=fd.skip_reason,
-            is_gazette=(fd.source_key == "resmi_gazete"),
-        )
+        if fd.doc_type == "KONSOLIDE":
+            # Kullanıcının izleme listesindeki mevzuat: konu süzgecinden geçirilmez.
+            rel = RelevanceResult(ALAKALI, 0.0, [], [], "İzleme listesindeki mevzuatın konsolide metni değişti")
+        else:
+            rel = self.taxonomy.assess_title(
+                fd.title, fd.doc_type, fd.section, skip_reason=fd.skip_reason,
+                is_gazette=(fd.source_key == "resmi_gazete"),
+            )
         if rel.decision in (ATLANDI, ALAKASIZ):
             self._apply_relevance(doc, rel)
             stats.skipped += rel.decision == ATLANDI
@@ -202,7 +209,7 @@ class ChangeDetectionEngine:
             return
 
         # Tam metni al (hem belirsizleri çözmek hem de analiz için)
-        dtext = adapter.fetch_text(self.fetcher, fd)
+        dtext = DocumentText(text=fd.inline_text, status="tam") if fd.inline_text else adapter.fetch_text(self.fetcher, fd)
         doc.full_text = dtext.text or None
         doc.text_hash = sha256(dtext.text) if dtext.text else None
         doc.text_status = dtext.status
@@ -281,6 +288,8 @@ class ChangeDetectionEngine:
 
         routine, routine_why = self.taxonomy.is_routine(dtext.text or "", fd.doc_type)
         ext = extract_all(fd.title, fd.doc_type, dtext.text or "", doc.published_date)
+        if fd.doc_type == "KONSOLIDE" and doc.rg_number:
+            ext.amended_regulation_ref = self._konsolide_ref(doc)
         eff_date, eff_status = summarize_effective(ext.effective_dates)
         if dtext.status == "okunamadi":
             review_reasons.append("Mevzuat metni okunamadı; özet yalnızca başlığa dayanıyor")
@@ -314,6 +323,19 @@ class ChangeDetectionEngine:
         self.session.flush()
         stats.new_changes += 1
         stats.new_change_ids.append(chg.id)
+
+    def _konsolide_ref(self, doc: RegulatoryDocument) -> str:
+        """Konsolide güncellemeyi, değişikliği yayımlayan RG'ye (ve varsa o RG'den açılmış kayda) bağlar."""
+        d = doc.rg_date
+        ref = (f"değişikliği yapan: {d.day}/{d.month}/{d.year} tarihli ve " if d else "değişikliği yapan: ") \
+            + f"{doc.rg_number} sayılı Resmî Gazete"
+        prior = self.session.scalar(
+            select(RegulatoryChange).join(RegulatoryDocument).where(
+                RegulatoryDocument.rg_number == doc.rg_number, RegulatoryDocument.id != doc.id,
+                RegulatoryDocument.doc_type != "KONSOLIDE").limit(1))
+        if prior is not None:
+            ref += f"; bu değişiklik RG kaydı olarak ayrıca bildirildi: {prior.document.title[:120]}"
+        return ref
 
     def _triage(self, title: str, text: str, rel: RelevanceResult) -> tuple[RelevanceResult, str | None]:
         if self.triage is None:

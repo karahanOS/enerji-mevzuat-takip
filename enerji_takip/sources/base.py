@@ -33,6 +33,7 @@ class FetchedDocument:
     published_date: date | None = None
     pdf_url: str | None = None
     skip_reason: str | None = None  # ör. İlan bölümü → analiz dışı
+    inline_text: str | None = None  # kaynak tarama sırasında metni üretmişse (ör. konsolide karşılaştırma)
 
 
 @dataclass

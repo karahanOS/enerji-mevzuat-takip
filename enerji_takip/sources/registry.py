@@ -11,6 +11,7 @@ from ..models import RegulatorySource
 from .base import SourceAdapter
 from .epdk import EpdkKararlarAdapter
 from .listing import HtmlListingAdapter
+from .mevzuat import MevzuatKonsolideAdapter
 from .resmi_gazete import ResmiGazeteAdapter
 from .rss import RssAdapter
 
@@ -19,6 +20,7 @@ ADAPTERS: dict[str, type[SourceAdapter]] = {
     HtmlListingAdapter.method: HtmlListingAdapter,
     RssAdapter.method: RssAdapter,
     EpdkKararlarAdapter.method: EpdkKararlarAdapter,
+    MevzuatKonsolideAdapter.method: MevzuatKonsolideAdapter,
 }
 
 REQUIRED_FIELDS = ("key", "name", "url", "category", "method")

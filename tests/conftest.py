@@ -118,6 +118,7 @@ def settings(tmp_path, smtp_server):
     s.database_url = f"sqlite:///{tmp_path / 'test.db'}"
     s.sources_file = src
     s.http_min_interval_seconds = 0
+    s.source_retry_delay_seconds = 0
     s.smtp_host, s.smtp_port, s.smtp_security = "127.0.0.1", smtp_server.port, "none"
     s.email_from = "ben@ornek.com"
     s.email_to = ["ben@ornek.com"]

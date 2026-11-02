@@ -9,6 +9,7 @@ Güvenilirlik ilkeleri:
 from __future__ import annotations
 
 import logging
+import time
 import traceback
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
@@ -218,10 +219,8 @@ class Pipeline:
         complete = True
         coverage: dict = {}
 
-        for source in sources:
-            if not source.enabled:
-                continue
-            outcome = self._scan_source(session, run, source, today)
+        def handle(source: RegulatorySource, outcome: ScanOutcome) -> None:
+            nonlocal complete
             coverage[source.key] = {"tamam": outcome.complete, **outcome.coverage}
             if not outcome.complete:
                 complete = False
@@ -246,6 +245,26 @@ class Pipeline:
             for f in ("seen", "new_documents", "new_changes", "irrelevant", "skipped", "duplicates", "baseline"):
                 setattr(totals, f, getattr(totals, f) + getattr(stats, f))
             session.commit()
+
+        retry_queue: list[RegulatorySource] = []
+        retry_delay = self.settings.source_retry_delay_seconds
+        for source in sources:
+            if not source.enabled:
+                continue
+            outcome = self._scan_source(session, run, source, today)
+            if not outcome.complete and not outcome.documents and retry_delay >= 0:
+                # Geçici ağ kesintisi olabilir: çalıştırma sonunda bir kez daha dene.
+                retry_queue.append(source)
+                continue
+            handle(source, outcome)
+
+        if retry_queue:
+            if retry_delay > 0:
+                log.info("%s kaynak eksik kaldı; %s sn sonra yeniden denenecek", len(retry_queue), retry_delay)
+                time.sleep(retry_delay)
+            for source in retry_queue:
+                outcome = self._scan_source(session, run, source, today, retry=True)
+                handle(source, outcome)
 
         for source in sources:
             source_rows.append(self._source_row(source))
@@ -301,7 +320,8 @@ class Pipeline:
         session.commit()
         log.info("Çalıştırma bitti: %s | yeni değişiklik=%s | rapor=%s", run.status, result.new_changes, report_status)
 
-    def _scan_source(self, session: Session, run: ScanRun, source: RegulatorySource, today: date) -> ScanOutcome:
+    def _scan_source(self, session: Session, run: ScanRun, source: RegulatorySource, today: date,
+                     retry: bool = False) -> ScanOutcome:
         adapter = build_adapter(source)
         state = dict((source.config or {}).get("_state", {}))
         source.last_checked_at = utcnow()
@@ -321,7 +341,8 @@ class Pipeline:
         cfg["_state"] = state
         source.config = cfg
         _log(session, run.id, "kaynak_tarama",
-             f"{source.name}: {'tamamlandı' if outcome.complete else 'EKSİK'} ({len(outcome.documents)} belge)",
+             f"{source.name}: {'tamamlandı' if outcome.complete else 'EKSİK'} ({len(outcome.documents)} belge)"
+             + (" [yeniden deneme]" if retry else ""),
              level="INFO" if outcome.complete else "ERROR", source_id=source.id,
              details={"coverage": outcome.coverage, "errors": outcome.errors, "warnings": outcome.warnings})
         session.commit()
