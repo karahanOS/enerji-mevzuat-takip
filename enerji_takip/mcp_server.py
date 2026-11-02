@@ -218,6 +218,10 @@ def degisiklik_detayi(degisiklik_id: str) -> dict:
     """Bir değişikliğin kural tabanlı çıkarımlarını verir: değiştirilen mevzuat, maddeler, yürürlük ve uyum
     tarihleri (dayanaklarıyla), önem gerekçesi, varsa AI analizi ve metnin başı.
 
+    'degisen_maddeler' her madde için 'yeni' (değişiklik hükmü) ve bulunabildiyse 'eski' (mevzuat.gov.tr'deki
+    değişiklik öncesi metin, kaynağı 'eski_kaynak') içerir; kullanıcıya "eskiden / şimdi / ne yapmalı"
+    karşılaştırmasını bu iki metinden yapın, 'eski' yoksa eski hükmü tahmin etmeyin ('eski_not' nedenini verir).
+
     Args:
         degisiklik_id: son_degisiklikler, ara veya guncelle sonucundaki 'id'.
     """

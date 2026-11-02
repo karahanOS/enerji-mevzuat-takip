@@ -119,6 +119,7 @@ def settings(tmp_path, smtp_server):
     s.sources_file = src
     s.http_min_interval_seconds = 0
     s.source_retry_delay_seconds = 0
+    s.previous_text_lookup = False  # ağa çıkmasın; ilgili testler açar
     s.smtp_host, s.smtp_port, s.smtp_security = "127.0.0.1", smtp_server.port, "none"
     s.email_from = "ben@ornek.com"
     s.email_to = ["ben@ornek.com"]
@@ -175,6 +176,13 @@ def default_analysis(prompt: str) -> dict:
         "guven": "orta",
         "metin_eksik_mi": False,
     }
+    if "<onceki_metin>" in prompt:
+        prev = prompt.split("<onceki_metin>")[1].split("</onceki_metin>")[0]
+        base["karsilastirma"] = [
+            {"madde": m, "onceki": f"{m}: eski hüküm (TEST)", "yeni": f"{m}: yeni hüküm (TEST)",
+             "pratik_fark": "Oran yüzde üç artırıldı (TEST)", "yapilacak": "Hesaplamayı güncelleyin (TEST)"}
+            for m in re.findall(r"^### (.+?) \(", prev, re.M)]
+        base["onceki_duzenleme"] = "Önceki metne göre özet (TEST)."
     if "Dengeleme ve Uzlaştırma" in title:
         base.update({
             "piyasa_etkisi": {"duzey": "genel", "aciklama": "Dengesizlik bedeli tüm dengeden sorumlu tarafları etkiler."},

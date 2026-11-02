@@ -153,7 +153,7 @@ def test_pipeline_konsolide_guncelleme_degisiklik_kaydi(settings, smtp_server, t
         chg = changes[0]
         assert chg.change_type == "KONSOLIDE_GUNCELLEME"
         assert chg.amended_regulation == "Enerji Verimliliği Denetim Yönetmeliği"
-        assert {"madde": "EK MADDE 1", "islem": "eklendi"} in chg.amended_articles
+        assert ("EK MADDE 1", "eklendi") in [(x["madde"], x["islem"]) for x in chg.amended_articles]
         doc = s.get(RegulatoryDocument, chg.document_id)
         assert doc.rg_number == "33418" and "YENİ METİN:" in doc.full_text
         assert chg.amended_regulation_ref == "değişikliği yapan: 1/11/2026 tarihli ve 33418 sayılı Resmî Gazete"

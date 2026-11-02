@@ -148,6 +148,41 @@ def _fmt(iso: str | None) -> str:
     return format_tr_date(date.fromisoformat(iso)) if iso else "belirsiz"
 
 
+RAW_TEXT_CHARS = 700  # e-postada madde başına gösterilen eski/yeni metin
+
+
+def _short(text: str | None, limit: int = RAW_TEXT_CHARS) -> str:
+    text = (text or "").strip()
+    return text if len(text) <= limit else text[:limit].rstrip() + " […]"
+
+
+def _comparison_view(chg: RegulatoryChange, a: dict | None) -> dict:
+    """'Eskiden / Şimdi / Yapmanız gereken' bölümü: AI karşılaştırması + ham eski/yeni madde metinleri."""
+    arts = chg.amended_articles or []
+    pairs = [{
+        "madde": x.get("madde"), "islem": x.get("islem"),
+        "eski": _short(x.get("eski")), "yeni": _short(x.get("yeni")),
+        "eski_not": x.get("eski_not") or "",
+        "teyit": x.get("teyit") or "",
+    } for x in arts if x.get("eski") or x.get("yeni")]
+    rows = []
+    for r in (a or {}).get("karsilastirma") or []:
+        rows.append({"madde": r.get("madde"), "onceki": r.get("onceki"), "yeni": r.get("yeni"),
+                     "fark": r.get("pratik_fark") or "", "yapilacak": r.get("yapilacak") or ""})
+    found = [x for x in arts if x.get("eski")]
+    source = next((x.get("eski_kaynak") for x in found if x.get("eski_kaynak")), None)
+    page = next((x.get("konsolide_url") for x in arts if x.get("konsolide_url")), None)
+    note = ""
+    if arts and not found and chg.change_type != "KONSOLIDE_GUNCELLEME":
+        reasons = {x.get("eski_not") for x in arts if x.get("eski_not")}
+        note = "Değişen maddelerin önceki hâli alınamadı" + (f": {'; '.join(sorted(reasons))[:200]}" if reasons else "") \
+            + ". Karşılaştırma için mevzuatın konsolide metnine bakınız."
+        for p in pairs:  # gerekçe üstteki notta; satırlarda tekrarlanmaz
+            p["eski_not"] = ""
+    return {"comparison": rows, "pairs": pairs, "previous_source": source, "consolidated_url": page,
+            "previous_note": note}
+
+
 def _item_view(n: int, chg: RegulatoryChange, taxonomy: Taxonomy) -> dict:
     doc = chg.document
     analysis = chg.latest_valid_analysis
@@ -236,6 +271,7 @@ def _item_view(n: int, chg: RegulatoryChange, taxonomy: Taxonomy) -> dict:
         "review_reasons": chg.review_reasons or [],
         "ai_ok": a is not None,
         "source_name": doc.source.name if doc.source else "",
+        **_comparison_view(chg, a),
         **view,
     }
 
