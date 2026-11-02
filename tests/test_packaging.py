@@ -133,3 +133,15 @@ def test_kilidi_kaldir_yarim_kalan_kaydi_kapatir(settings, monkeypatch):
     assert main(["run", "--type", "tarama", "--no-send", "--kilidi-kaldir"]) == 0
     with session_scope() as s:
         assert [r.status for r in s.scalars(select(ScanRun))] == ["yarida_kaldi"]
+
+
+def test_surum_bayragi(capsys):
+    import pytest
+
+    from enerji_takip import __version__
+    from enerji_takip.__main__ import main
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--version"])
+    assert exc.value.code == 0
+    assert __version__ in capsys.readouterr().out

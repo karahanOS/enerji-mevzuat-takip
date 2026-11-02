@@ -289,6 +289,9 @@ def cmd_healthcheck(_args) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="enerji-takip", description="Enerji Mevzuatı Takip ve Bildirim Sistemi")
+    from . import __version__
+
+    p.add_argument("--version", action="version", version=f"enerji-takip {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
     ic = sub.add_parser("init-config", help="Varsayılan yapılandırmayı config/ altına kopyalar")
     ic.add_argument("--force", action="store_true")

@@ -67,7 +67,7 @@ def _tesseract_setup() -> tuple[str, list[str]]:
     return "tur", ["--tessdata-dir", str(tessdir)]
 
 
-def ocr_pdf(content: bytes, *, max_pages: int = 8, timeout: int = 120, dpi: int = 200) -> str:
+def ocr_pdf(content: bytes, *, max_pages: int = 25, timeout: int = 120, dpi: int = 200) -> str:
     """PDF'in ilk `max_pages` sayfasını OCR ile okur. Başarısızlıkta boş metin döner."""
     if not ocr_available():
         log.info("OCR atlandı: pdftoppm/tesseract kurulu değil")

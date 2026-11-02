@@ -30,7 +30,10 @@ BASE = "https://www.resmigazete.gov.tr"
 
 ITEM_HREF_RE = re.compile(r"(?P<ymd>\d{8})(?P<muk>M\d+)?-(?P<no>\d+(?:-\d+)?)\.(?P<ext>htm|html|pdf)$", re.I)
 MUKERRER_INDEX_RE = re.compile(r"(?P<ymd>\d{8})M(?P<n>\d+)\.htm$", re.I)
-SAYI_RE = re.compile(r"Say[ıi]\s*:?\s*(\d{4,6})", re.I)
+# Fihrist başlığı: "29 Ağustos 2026 Tarihli ve 33355 Sayılı Resmî Gazete". Eski "Sayı : NNNNN" kalıbı yalnızca yedek;
+# 5 haneli ve 3 ile başlayan sayı ister (aksi halde "Sayı: 2023" gibi başka yerlerdeki ifadelere takılır).
+SAYI_HEADER_RE = re.compile(r"Tarihli\s+ve\s+(\d{5})\s+Say[ıi]l[ıi]\s+Resm", re.I)
+SAYI_RE = re.compile(r"Say[ıi]\s*:?\s*(3\d{4})\b", re.I)
 BLOCK_TAGS = ["p", "div", "td", "th", "li", "h1", "h2", "h3", "h4", "h5", "h6", "center"]
 
 TOP_SECTIONS = {
@@ -126,7 +129,7 @@ def parse_fihrist(html: str, page_url: str, expected: date | None = None) -> tup
     full_text = body.get_text(" ", strip=True)
     meta: dict = {"rg_number": None, "rg_date": None, "mukerrer_links": []}
 
-    m = SAYI_RE.search(full_text)
+    m = SAYI_HEADER_RE.search(full_text[:1000]) or SAYI_RE.search(full_text[:1000])
     if m:
         meta["rg_number"] = m.group(1)
     meta["rg_date"] = parse_tr_date(full_text[:600]) or expected
