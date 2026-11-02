@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import timedelta
 from typing import Callable
 from urllib.parse import urlparse, urlunparse
@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..http import Fetcher
 from ..models import RegulatoryChange, RegulatoryDocument, RegulatorySource, utcnow
-from ..sources.base import FetchedDocument, SourceAdapter
+from ..sources.base import DocumentText, FetchedDocument, SourceAdapter
 from ..text_utils import normalize_for_match, normalize_title, sha256
 from .extract import extract_all, summarize_effective
 from .relevance import ALAKALI, ALAKASIZ, ATLANDI, BASLANGIC, BELIRSIZ, RelevanceResult, Taxonomy
@@ -109,6 +109,26 @@ def routine_gist(text: str) -> str:
     return sentences[0].strip()[:300] if sentences else ""
 
 
+_KARAR_NO_RE = re.compile(r"Karar\s*No\s*[:;.\-]?\s*(\d{4,6})", re.I)
+
+
+def split_decisions(text: str) -> list[tuple[str, str]]:
+    """Birleşik kurul kararı PDF'ini karar numarasına göre böler: [(numara, metin)].
+
+    Resmî Gazete'de bir günün aynı konulu EPDK kararları tek PDF'de yayımlanır (ör. 14830–14835). Her karar
+    "Karar No: NNNNN" satırıyla başlar; EK tablolar kendi kararının metninde kalır. En az iki farklı numara
+    yoksa boş liste döner (tek karar bölünmez).
+    """
+    marks = [(m.start(), m.group(1)) for m in _KARAR_NO_RE.finditer(text or "")]
+    if len({n for _, n in marks}) < 2:
+        return []
+    parts: dict[str, str] = {}
+    for i, (start, no) in enumerate(marks):
+        end = marks[i + 1][0] if i + 1 < len(marks) else len(text)
+        parts[no] = (parts.get(no, "") + "\n" + text[start:end]).strip()
+    return list(parts.items())
+
+
 class ChangeDetectionEngine:
     def __init__(self, session: Session, fetcher: Fetcher, taxonomy: Taxonomy, triage: TriageFn | None = None):
         self.session = session
@@ -192,6 +212,48 @@ class ChangeDetectionEngine:
         if dtext.status == "okunamadi":
             stats.text_failures += 1
 
+        parts = split_decisions(dtext.text) if fd.doc_type == "KURUL_KARARI" else []
+        if parts:
+            self._process_split(doc, fd, key, dtext, parts, stats)
+            return
+        self._evaluate(doc, fd, rel, dtext, stats)
+
+    def _process_split(self, parent: RegulatoryDocument, fd: FetchedDocument, key: str, dtext: DocumentText,
+                       parts: list[tuple[str, str]], stats: DetectionStats) -> None:
+        """Birleşik karar PDF'i: her karar kendi belge ve değişiklik kaydını alır, üst kayıt 'kopya' olur."""
+        numbers = ", ".join(no for no, _ in parts)
+        parent.relevance = "kopya"
+        parent.relevance_reason = f"Birleşik PDF karar bazında ayrıldı ({numbers})"
+        for no, text in parts:
+            gist = re.sub(r"\s+", " ", routine_gist(text))[:180]
+            title = f"EPDK Kurul Kararı {no} — {gist} ({no} sayılı Kurul Kararı)"
+            child_key = sha256(f"{key}|karar|{no}")
+            if self.session.scalar(select(RegulatoryDocument).where(RegulatoryDocument.dedup_key == child_key)):
+                continue
+            child_fd = replace(fd, external_id=f"{fd.external_id}#{no}", title=title)
+            child = RegulatoryDocument(
+                source_id=parent.source_id, dedup_key=child_key, external_id=child_fd.external_id, title=title,
+                doc_type=fd.doc_type, section=parent.section, institution=parent.institution, rg_date=parent.rg_date,
+                rg_number=parent.rg_number, is_mukerrer=parent.is_mukerrer, published_date=parent.published_date,
+                url=fd.url, pdf_url=fd.pdf_url, full_text=text, text_hash=sha256(text),
+                text_status="tam" if len(text) >= 400 else "kisa",
+                fetch_error=dtext.note if dtext.status != "tam" else None,
+            )
+            self.session.add(child)
+            self.session.flush()
+            stats.new_documents += 1
+            rel = self.taxonomy.assess_title(title, fd.doc_type, fd.section, skip_reason=fd.skip_reason,
+                                             is_gazette=(fd.source_key == "resmi_gazete"))
+            if rel.decision in (ATLANDI, ALAKASIZ):
+                self._apply_relevance(child, rel)
+                stats.skipped += rel.decision == ATLANDI
+                stats.irrelevant += rel.decision == ALAKASIZ
+                continue
+            child_text = DocumentText(text=text, status=child.text_status, institution=dtext.institution, note=dtext.note)
+            self._evaluate(child, child_fd, rel, child_text, stats)
+
+    def _evaluate(self, doc: RegulatoryDocument, fd: FetchedDocument, rel: RelevanceResult, dtext: DocumentText,
+                  stats: DetectionStats) -> None:
         review_reasons: list[str] = []
         if rel.decision == ALAKALI and dtext.text:
             # Başlıktan ilgili bulunan belgede kategorileri metinle zenginleştir (ör. EPDK kararı → elektrik piyasası)

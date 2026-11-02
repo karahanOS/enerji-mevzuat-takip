@@ -272,3 +272,69 @@ def test_analiz_disi_ama_ilgili_gorunen_belgeler_ayri_listelenir(settings, smtp_
     assert out["skipped_relevant"][0]["keywords"] and out["skipped_relevant"][0]["source"] == "Resmî Gazete"
     assert [d["title"] for d in out["skipped"]] == ["Üniversite Yemek Hizmeti İhale İlanı"]
     assert out["skipped_total"] == 1 and out["skipped_relevant_total"] == 1 and out["irrelevant_total"] == 1
+
+
+# ---- Birleşik kurul kararı PDF'i karar bazında ayrılır ---------------------------------------------------
+BIRLESIK = (
+    "Enerji Piyasası Düzenleme Kurumundan: KURUL KARARI Karar No: 14781 Karar Tarihi: 06/08/2026 "
+    "Enerji Piyasası Düzenleme Kurulunun 06/08/2026 tarihli toplantısında; Petrol Ofisi Anonim Şirketi'nin; "
+    "DEP/474-8/10366 sayılı Depolama Lisansı kapsamında Derince Terminali Depolama Tesisine ilişkin depolama "
+    "tarifesinin ekteki şekilde tadil edilerek onaylanmasına, karar verilmiştir. EK- Derince Terminali Depolama Tarifesi. "
+    "Karar No: 14782 Karar Tarihi: 06/08/2026 "
+    "Enerji Piyasası Düzenleme Kurulunun 06/08/2026 tarihli toplantısında; Aygaz Anonim Şirketi'nin "
+    "LPG-DPO/12-3/001 sayılı LPG depolama lisansı ile Tesisi için LPG depolama tarifesinin ekte belirtildiği şekilde "
+    "tadil edilerek onaylanmasına, karar verilmiştir. EK- Aygaz Tesisi Depolama Tarifesi."
+)
+
+
+def test_birlesik_kurul_karari_pdf_i_karar_bazinda_ayrilir():
+    from enerji_takip.detection.engine import split_decisions
+
+    parts = split_decisions(BIRLESIK)
+    assert [n for n, _ in parts] == ["14781", "14782"]
+    assert "Derince" in parts[0][1] and "Aygaz" not in parts[0][1]
+    assert "Aygaz" in parts[1][1]
+    assert split_decisions("Karar No: 14781 tek karar. Karar No: 14781 sayfa başlığı") == []  # aynı numara = tek karar
+    assert split_decisions("") == []
+
+
+def test_birlesik_pdf_her_karar_icin_ayri_belge_ve_degisiklik_uretir(settings):
+    from enerji_takip.config import config_path
+    from enerji_takip.db import init_db, session_scope
+    from enerji_takip.detection.engine import ChangeDetectionEngine
+    from enerji_takip.detection.relevance import Taxonomy
+    from enerji_takip.sources.base import DocumentText, FetchedDocument, SourceAdapter
+
+    class Ad(SourceAdapter):
+        method = "x"
+
+        def scan(self, *a, **k):  # pragma: no cover
+            raise NotImplementedError
+
+        def fetch_text(self, fetcher, doc):
+            return DocumentText(text=BIRLESIK, status="tam")
+
+    init_db()
+    tax = Taxonomy.load(config_path("taxonomy.yaml"))
+    fd = FetchedDocument(source_key="resmi_gazete", external_id="rg|20260808-4", doc_type="KURUL_KARARI",
+                         title="Enerji Piyasası Düzenleme Kurulunun 06/08/2026 Tarihli ve 14781 ve 14782 Sayılı Kararları",
+                         url="https://www.resmigazete.gov.tr/eskiler/2026/08/20260808-4.pdf",
+                         rg_date=date(2026, 8, 8), rg_number="33334")
+    with session_scope() as s:
+        src = RegulatorySource(key="resmi_gazete", name="Resmî Gazete", url="https://x.test", category="resmi", method="rg_fihrist")
+        s.add(src)
+        s.flush()
+        eng = ChangeDetectionEngine(s, None, tax)
+        stats = eng.process(src, Ad("resmi_gazete"), [fd])
+        assert stats.new_changes == 2 and not stats.errors
+        docs = {d.title: d for d in s.scalars(select(RegulatoryDocument))}
+        parent = next(d for d in docs.values() if d.external_id == "rg|20260808-4")
+        assert parent.relevance == "kopya" and "14781" in parent.relevance_reason
+        kids = [d for d in docs.values() if "#" in d.external_id]
+        assert sorted(k.external_id.split("#")[1] for k in kids) == ["14781", "14782"]
+        assert all(k.rg_number == "33334" and k.url == fd.url and "sayılı Kurul Kararı" in k.title for k in kids)
+        changes = list(s.scalars(select(RegulatoryChange)))
+        assert {c.status for c in changes} == {"rutin"}  # ikisi de tek şirketin depolama tarifesi tadili
+        # ikinci tarama: yeni kayıt oluşmaz
+        stats2 = eng.process(src, Ad("resmi_gazete"), [fd])
+        assert stats2.new_changes == 0
