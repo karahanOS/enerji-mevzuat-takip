@@ -289,3 +289,17 @@ def test_tek_lisans_sahibinin_tarife_revizyonu_rutin_sayilir():
     assert ok and "tarife revizyonu" in why
     genel = "Doğal gaz dağıtım şirketleri için tarife hesaplama usul ve esasları yönetmeliği değiştirilmiştir. Anonim şirketler uyar."
     assert tax.is_routine(genel, "KURUL_KARARI")[0] is False
+
+
+def test_rg_sayisi_basliktan_alinir_ve_baska_sayilara_takilmaz():
+    from enerji_takip.sources.resmi_gazete import parse_fihrist
+
+    html = ("<html><body><div>29 Ağustos 2026 Tarihli ve 33355 Sayılı Resmî Gazete</div>"
+            "<div>Sayı: 2023 tarihli yönetmelik</div>"
+            "<a href='20260829-10.pdf'>Enerji Piyasası Düzenleme Kurulunun 27/08/2026 Tarihli ve 14830 Sayılı Kararı</a></body></html>")
+    _, meta = parse_fihrist(html, "https://www.resmigazete.gov.tr/eskiler/2026/08/20260829.htm")
+    assert meta["rg_number"] == "33355"
+    # başlık yoksa yalnızca 5 haneli, 3 ile başlayan sayı kabul edilir
+    _, meta2 = parse_fihrist("<html><body>Sayı : 2023 ve Sayı : 33355</body></html>",
+                             "https://www.resmigazete.gov.tr/eskiler/2026/08/20260829.htm")
+    assert meta2["rg_number"] == "33355"

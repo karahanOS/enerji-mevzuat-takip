@@ -136,7 +136,7 @@ class Settings:
     rg_max_backfill_days: int = 14
     rg_first_run_days: int = 1
     ocr_enabled: bool = True
-    ocr_max_pages: int = 8
+    ocr_max_pages: int = 25
 
     # Yapılandırma dosyaları (varsayılanlar pakette; config/ altına kopyalanarak özelleştirilir)
     sources_file: Path = field(default_factory=lambda: config_path("sources.yaml"))
