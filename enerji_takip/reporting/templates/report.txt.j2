@@ -51,6 +51,28 @@ Yürürlük tarihi: {{ it.effective | join('; ') }}{{ it.effective_note }}
 Değişikliğin özeti
 {{ it.summary }}
 
+{% if it.comparison or it.pairs or it.previous_note %}
+Eskiden / Şimdi
+{% if it.previous_note %}{{ it.previous_note }}
+{% endif %}
+{% for c in it.comparison %}
+  {{ c.madde }}
+    Eskiden: {{ c.onceki }}
+    Şimdi:   {{ c.yeni }}
+{% if c.fark %}    Fark:    {{ c.fark }}
+{% endif %}{% if c.yapilacak %}    Yapmanız gereken: {{ c.yapilacak }}
+{% endif %}
+{% endfor %}
+{% for p in it.pairs %}
+  {{ p.madde }} ({{ p.islem }}) — madde metinleri
+    Önceki: {{ p.eski or (p.eski_not or 'Alınamadı') }}
+    Yeni:   {{ p.yeni or '—' }}
+{% endfor %}
+{% if it.previous_source %}  Önceki metin kaynağı: {{ it.previous_source }}
+{% endif %}{% if it.consolidated_url %}  Konsolide metin: {{ it.consolidated_url }}
+{% endif %}
+
+{% endif %}
 Piyasaya etkisi ({{ it.impact_level }})
 {{ it.impact }}
 {% if it.personal %}

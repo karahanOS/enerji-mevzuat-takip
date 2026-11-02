@@ -392,6 +392,15 @@ class Pipeline:
             chg.amended_regulation = ext.amended_regulation or chg.amended_regulation
             chg.amended_regulation_ref = ext.amended_regulation_ref
             chg.amended_articles = ext.amended_articles
+            if ext.change_type in ("DEGISIKLIK", "YURURLUKTEN_KALDIRMA") and ext.amended_articles \
+                    and self.settings.previous_text_lookup:
+                from .detection.previous import attach_previous
+
+                try:
+                    chg.amended_articles, _ = attach_previous(session, self.fetcher, ext.amended_articles,
+                                                              chg.amended_regulation, doc.rg_number, dtext.text)
+                except Exception as exc:
+                    log.warning("Önceki metin eklenemedi: %s", exc)
             chg.effective_dates = ext.effective_dates
             chg.effective_date, chg.effective_date_status = summarize_effective(ext.effective_dates)
             chg.change_aspects = ext.aspects

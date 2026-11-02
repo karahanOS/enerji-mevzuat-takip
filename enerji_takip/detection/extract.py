@@ -90,16 +90,28 @@ def _fix_stem(name: str) -> str:
 
 
 _KONSOLIDE_LIST_RE = re.compile(r"^Değişen maddeler: (?P<list>.+?)\.?$", re.M)
+_KONSOLIDE_BLOCK_RE = re.compile(r"^=== (?P<label>.+?) — (?:değiştirildi|eklendi|çıkarıldı) ===\n(?P<body>(?:(?!^===).*\n?)*)", re.M)
 _KONSOLIDE_ITEM_RE = re.compile(r"(?P<madde>[^,()]+?) \((?P<islem>değiştirildi|eklendi|çıkarıldı)\)")
 
 
 def konsolide_articles(text: str) -> list[dict]:
-    """Konsolide metin karşılaştırmasının 'Değişen maddeler:' satırı → [{madde, islem}]."""
+    """Konsolide metin karşılaştırması → [{madde, islem, eski, yeni, eski_kaynak}]."""
     m = _KONSOLIDE_LIST_RE.search(text[:3000])
     if not m:
         return []
-    return [{"madde": x.group("madde").strip(), "islem": x.group("islem")}
-            for x in _KONSOLIDE_ITEM_RE.finditer(m.group("list"))]
+    out = [{"madde": x.group("madde").strip(), "islem": x.group("islem")}
+           for x in _KONSOLIDE_ITEM_RE.finditer(m.group("list"))]
+    blocks = {b.group("label").strip(): b.group("body") for b in _KONSOLIDE_BLOCK_RE.finditer(text)}
+    for item in out:
+        body = blocks.get(item["madde"])
+        if body is None:
+            continue
+        old = re.search(r"^ESKİ METİN: (.+)$", body, re.M)
+        new = re.search(r"^YENİ METİN: (.+)$", body, re.M)
+        item["eski"] = old.group(1).strip() if old else None
+        item["yeni"] = new.group(1).strip() if new else None
+        item["eski_kaynak"] = "mevzuat.gov.tr konsolide metninin önceki hâli (sistemde saklanan)"
+    return out
 
 
 def detect_change_type(title: str, doc_type: str) -> str:
@@ -160,19 +172,38 @@ def split_articles(text: str) -> list[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
+MAX_AMENDMENT_CHARS = 3000  # madde başına saklanan değişiklik hükmü (yeni metin) üst sınırı
+_QUOTE_START_RE = re.compile(r"^[\"“”„«']")
+
+
+def _clip(text: str, limit: int = MAX_AMENDMENT_CHARS) -> str:
+    text = normalize_space(text).replace("\n", " ")
+    return text if len(text) <= limit else text[:limit].rstrip() + " […]"
+
+
 def extract_amended_articles(text: str) -> list[dict]:
-    """Değiştiren mevzuatın maddelerinden hedef maddeleri ve işlem türünü çıkarır."""
+    """Değiştiren mevzuatın maddelerinden hedef maddeleri, işlem türünü ve değişiklik hükmünü çıkarır.
+
+    'yeni': değişikliği yapan madde metni; "… aşağıdaki şekilde değiştirilmiştir." sonrasındaki tırnaklı
+    yeni metin (ör. “MADDE 14 – …”) ayrı blok olarak bölünse bile aynı kayda eklenir."""
     results: list[dict] = []
     seen: set[tuple[str, str]] = set()
+    last: dict | None = None
     for block in split_articles(text):
         verbs = [tr_lower(m.group("v")) for m in _VERB_RE.finditer(block)]
         if not verbs:
+            # Tırnak, bölme noktasından önce kalmış olabilir: '… değiştirilmiştir. “' + 'MADDE 14 – …”'
+            if last is not None and (_QUOTE_START_RE.match(block) or last["yeni"].rstrip().endswith(('"', "“", "„", "«"))):
+                last["yeni"] = _clip(last["yeni"] + " " + block)
+            else:
+                last = None
             continue
         action = (
             "yürürlükten kaldırıldı" if any("kaldırıl" in v for v in verbs)
             else "eklendi" if any(v in ("eklenmiştir", "ilave edilmiştir") for v in verbs) and not any("değiştiril" in v for v in verbs)
             else "değiştirildi"
         )
+        last = None
         # "Bu Yönetmeliğin 3 üncü maddesi ..." gibi kendine atıfları atla
         cleaned = re.sub(r"\bBu\s+(Yönetmeliğin|Tebliğin|Kanunun|Kararın|Kararnamenin|Genelgenin)\b[^.]*", "", block)
         if action == "eklendi":
@@ -181,7 +212,8 @@ def extract_amended_articles(text: str) -> list[dict]:
                 label = ("Geçici Madde" if q.group("kind").lower().startswith("g") else "Ek Madde") + f" {q.group('no')}"
                 if (label, action) not in seen:
                     seen.add((label, action))
-                    results.append({"madde": label, "islem": action})
+                    last = {"madde": label, "islem": action, "yeni": _clip(block)}
+                    results.append(last)
                 continue
         for m in _ARTICLE_RE.finditer(cleaned[:600]):
             kind = (m.group("kind") or "").strip().lower()
@@ -189,7 +221,14 @@ def extract_amended_articles(text: str) -> list[dict]:
             key = (label, action)
             if key not in seen:
                 seen.add(key)
-                results.append({"madde": label, "islem": action})
+                last = {"madde": label, "islem": action, "yeni": _clip(block)}
+                results.append(last)
+            else:
+                # Aynı maddeye ikinci değişiklik hükmü (ör. farklı fıkralar): metni birleştir
+                for r in results:
+                    if (r["madde"], r["islem"]) == key:
+                        r["yeni"] = _clip(r["yeni"] + " | " + block)
+                        last = r
             break  # her değişiklik maddesinin ilk hedef atfı yeterli
     return results
 

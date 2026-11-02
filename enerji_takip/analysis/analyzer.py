@@ -20,6 +20,7 @@ from .prompts import (
     SYSTEM_PROMPT,
     TRIAGE_SYSTEM,
     build_analysis_prompt,
+    build_previous_section,
     build_retry_prompt,
     build_triage_prompt,
     extract_json,
@@ -131,16 +132,22 @@ class RegulatoryAnalyzer:
             "degisiklik_turu": change.change_type,
             "degistirilen_mevzuat": change.amended_regulation,
             "degistirilen_mevzuat_ilk_yayim": change.amended_regulation_ref,
-            "degistirilen_maddeler": change.amended_articles,
+            "degistirilen_maddeler": [{"madde": a.get("madde"), "islem": a.get("islem")}
+                                      for a in change.amended_articles or []],
             "yururluk_ve_uyum_tarihleri": change.effective_dates,
         }
+        # Konsolide güncellemenin metni zaten ESKİ/YENİ içerir; diğerlerinde eski madde metni ayrı verilir
+        previous = "" if change.change_type == "KONSOLIDE_GUNCELLEME" else build_previous_section(change.amended_articles)
         failures: list[str] = []
         quota_only = True
         attempts = max(1, self.settings.llm_max_attempts)
         for client in self.chain.clients:
-            text, truncated = truncate_for_llm(doc.full_text, client.max_input_chars)
+            # Eski metin, sağlayıcının girdi sınırının en fazla yarısını kullanır; kalan mevzuat metnine ayrılır
+            prev = previous if len(previous) <= client.max_input_chars // 2 else \
+                previous[: client.max_input_chars // 2] + " [… kısaltıldı]"
+            text, truncated = truncate_for_llm(doc.full_text, client.max_input_chars - len(prev))
             messages = [Message("user", build_analysis_prompt(profile=self.profile, meta=meta, rule_hints=hints,
-                                                              text=text, truncated=truncated))]
+                                                              text=text, truncated=truncated, previous=prev))]
             for attempt in range(1, attempts + 1):
                 change.analysis_attempts += 1
                 started = time.monotonic()

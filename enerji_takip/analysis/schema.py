@@ -114,6 +114,14 @@ class MarketImpact(BaseModel):
         return norm_enum(v).lower()
 
 
+class Comparison(BaseModel):
+    madde: str
+    onceki: str = Field(description="Eski hükmün gerektirdiği; eski metin yoksa 'Önceki metin alınamadı'")
+    yeni: str
+    pratik_fark: str = ""
+    yapilacak: str = ""
+
+
 class AnalysisResult(BaseModel):
     ilgili_mi: EvetHayir
     ilgililik_gerekcesi: str
@@ -121,6 +129,7 @@ class AnalysisResult(BaseModel):
     ne_degisti: str
     onceki_duzenleme: str
     yeni_duzenleme: str
+    karsilastirma: list[Comparison] = Field(default_factory=list)
     acik_hukumler: list[Provision] = Field(default_factory=list)
     cikarimlar: list[str] = Field(default_factory=list)
     piyasa_etkisi: MarketImpact

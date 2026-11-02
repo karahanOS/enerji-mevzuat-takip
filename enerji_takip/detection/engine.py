@@ -289,7 +289,16 @@ class ChangeDetectionEngine:
         routine, routine_why = self.taxonomy.is_routine(dtext.text or "", fd.doc_type)
         ext = extract_all(fd.title, fd.doc_type, dtext.text or "", doc.published_date)
         if fd.doc_type == "KONSOLIDE" and doc.rg_number:
-            ext.amended_regulation_ref = self._konsolide_ref(doc)
+            prior = self._prior_rg_change(doc, ext.amended_regulation)
+            if prior is not None and self._confirm_prior(prior, doc, ext.amended_articles):
+                doc.relevance = "kopya"
+                doc.relevance_reason = (f"Konsolide metin güncellemesi, RG'den bildirilen değişikliği teyit etti "
+                                        f"(değişiklik {prior.id}); eski metin o kayda eklendi")
+                stats.duplicates += 1
+                return
+            ext.amended_regulation_ref = self._konsolide_ref(doc, prior)
+        if not routine and ext.change_type in ("DEGISIKLIK", "YURURLUKTEN_KALDIRMA") and ext.amended_articles:
+            ext.amended_articles = self._with_previous(ext.amended_articles, ext.amended_regulation, doc, dtext.text or "")
         eff_date, eff_status = summarize_effective(ext.effective_dates)
         if dtext.status == "okunamadi":
             review_reasons.append("Mevzuat metni okunamadı; özet yalnızca başlığa dayanıyor")
@@ -324,17 +333,81 @@ class ChangeDetectionEngine:
         stats.new_changes += 1
         stats.new_change_ids.append(chg.id)
 
-    def _konsolide_ref(self, doc: RegulatoryDocument) -> str:
+    def _with_previous(self, articles: list[dict], regulation: str | None, doc: RegulatoryDocument,
+                       text: str) -> list[dict]:
+        """Değişen maddelerin eski hâlini ekler (eski–yeni karşılaştırması); hata tespiti engellemez."""
+        from ..config import get_settings
+        from .previous import attach_previous
+
+        if not get_settings().previous_text_lookup:
+            return articles
+        try:
+            out, prev = attach_previous(self.session, self.fetcher, articles, regulation, doc.rg_number, text)
+            if prev is not None:
+                log.info("Önceki metin (%s): %s %s", regulation, prev.status, prev.note)
+            return out
+        except Exception as exc:  # karşılaştırma ek bilgidir; tespiti asla düşürmez
+            log.warning("Önceki metin eklenemedi (%s): %s", regulation, exc)
+            return articles
+
+    def _prior_rg_change(self, doc: RegulatoryDocument, regulation: str | None) -> RegulatoryChange | None:
+        """Aynı RG sayısında yayımlanmış ve AYNI mevzuatı değiştiren (RG'den açılmış) değişiklik kaydı."""
+        from .previous import _norm_name
+
+        if not regulation:
+            return None
+        want = _norm_name(regulation)
+        rows = self.session.scalars(
+            select(RegulatoryChange).join(RegulatoryDocument).where(
+                RegulatoryDocument.rg_number == doc.rg_number, RegulatoryDocument.id != doc.id,
+                RegulatoryDocument.doc_type != "KONSOLIDE"))
+        for chg in rows:
+            if chg.amended_regulation and _norm_name(chg.amended_regulation) == want:
+                return chg
+        return None
+
+    def _confirm_prior(self, prior: RegulatoryChange, doc: RegulatoryDocument, konsolide: list[dict]) -> bool:
+        """Konsolide güncellemeyi RG kaydına işler. False dönerse ayrı kayıt açılmalı: RG kaydı eski metin
+        olmadan zaten e-postayla bildirilmişse, gecikmeli eski–yeni karşılaştırması kullanıcıya ulaşsın diye."""
+        from ..models import EmailReport, EmailReportItem
+        from .previous import article_key
+
+        def lacks_old(a: dict) -> bool:
+            return not a.get("eski") and a.get("islem") != "eklendi"
+
+        arts = [dict(a) for a in prior.amended_articles or []]
+        missing = not arts or any(lacks_old(a) for a in arts)
+        reported = self.session.scalar(
+            select(EmailReportItem.id).join(EmailReport).where(
+                EmailReportItem.change_id == prior.id, EmailReport.status == "gonderildi").limit(1)) is not None
+        if missing and reported:
+            return False
+        by_key = {article_key(k["madde"]): k for k in konsolide if not k["madde"].startswith(("Giriş", "Yayım"))}
+        today = utcnow().date().isoformat()
+        if not arts:
+            arts = [{"madde": k["madde"], "islem": k["islem"]} for k in by_key.values()]
+        for a in arts:
+            k = by_key.get(article_key(a["madde"]))
+            if k is None:
+                continue
+            a["teyit"] = today
+            a["konsolide_url"] = a.get("konsolide_url") or doc.url
+            if lacks_old(a) and k.get("eski"):
+                a["eski"] = k["eski"]
+                a["eski_kaynak"] = k.get("eski_kaynak")
+                a.pop("eski_not", None)
+            if not a.get("yeni") and k.get("yeni"):
+                a["yeni"] = k["yeni"]
+        prior.amended_articles = arts
+        return True
+
+    def _konsolide_ref(self, doc: RegulatoryDocument, prior: RegulatoryChange | None = None) -> str:
         """Konsolide güncellemeyi, değişikliği yayımlayan RG'ye (ve varsa o RG'den açılmış kayda) bağlar."""
         d = doc.rg_date
         ref = (f"değişikliği yapan: {d.day}/{d.month}/{d.year} tarihli ve " if d else "değişikliği yapan: ") \
             + f"{doc.rg_number} sayılı Resmî Gazete"
-        prior = self.session.scalar(
-            select(RegulatoryChange).join(RegulatoryDocument).where(
-                RegulatoryDocument.rg_number == doc.rg_number, RegulatoryDocument.id != doc.id,
-                RegulatoryDocument.doc_type != "KONSOLIDE").limit(1))
         if prior is not None:
-            ref += f"; bu değişiklik RG kaydı olarak ayrıca bildirildi: {prior.document.title[:120]}"
+            ref += f"; bu değişiklik RG kaydı olarak eski metin olmadan bildirilmişti: {prior.document.title[:120]}"
         return ref
 
     def _triage(self, title: str, text: str, rel: RelevanceResult) -> tuple[RelevanceResult, str | None]:

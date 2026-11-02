@@ -65,9 +65,9 @@ def test_enerji_mevzuati_tespit_analiz_ve_eposta(settings, smtp_server):
         duy = changes[DUY]
         assert duy.change_type == "DEGISIKLIK"
         assert duy.amended_regulation == "Elektrik Piyasası Dengeleme ve Uzlaştırma Yönetmeliği"
-        assert {"madde": "Madde 4", "islem": "değiştirildi"} in duy.amended_articles
-        assert {"madde": "Madde 110", "islem": "eklendi"} in duy.amended_articles
-        assert {"madde": "Geçici Madde 15", "islem": "yürürlükten kaldırıldı"} in duy.amended_articles
+        assert ("Madde 4", "değiştirildi") in [(x["madde"], x["islem"]) for x in duy.amended_articles]
+        assert ("Madde 110", "eklendi") in [(x["madde"], x["islem"]) for x in duy.amended_articles]
+        assert ("Geçici Madde 15", "yürürlükten kaldırıldı") in [(x["madde"], x["islem"]) for x in duy.amended_articles]
         assert duy.importance == "KRITIK" and duy.status == "analiz_edildi", duy.review_reasons
         assert "elektrik_piyasasi" in duy.categories
         assert duy.departments == ["Fiyatlar ve uzlaştırma", "Elektrik piyasası işleyişi", "Yenilenebilir enerji ve YEKDEM"]

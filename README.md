@@ -41,6 +41,13 @@ Tüm bileşenler ücretsizdir (bkz. [Maliyet](#maliyet--her-bileşen-ücretsiz))
 * **Kural tabanlı çıkarım:** değişiklik türü, değiştirilen mevzuat ve ilk yayımı, değişen maddeler, yürürlük ve
   uyum tarihleri. Her tarihin dayanağı yazılır: `kesin` (metinde açık), `hesaplanan` (metindeki süreden),
   `belirsiz`. **Tarih tahmin edilmez.**
+* **Eskiden / Şimdi karşılaştırması (v0.1.12):** Resmî Gazete'deki değişiklik metni yalnızca yeni hükmü verir.
+  Sistem değişen maddelerin önceki hâlini mevzuat.gov.tr'den alır: mevzuat izleme listesindeyse saklanan
+  tabandan, değilse adıyla arayıp sitedeki o anki metinden (site değişikliği RG'den günler sonra işlediği için o
+  gün hâlâ eski metin durur; işlenmişse değişiklik işaretinden anlaşılır ve eski metin kullanılmaz). Raporda her
+  madde için "Eskiden / Şimdi / Fark / Yapmanız gereken" ve iki metin yan yana yer alır. Eski hüküm tahmin
+  edilmez; bulunamadıysa raporda yazar. mevzuat.gov.tr metni sonradan güncellenince RG kaydı ayrıca
+  bildirilmez, "konsolide metinle teyit edildi" notu düşülür (`PREVIOUS_TEXT_LOOKUP`).
 * **Önem seviyesi (KRİTİK / YÜKSEK / ORTA / DÜŞÜK):** KRİTİK için iki şart birlikte aranır: piyasa geneline
   etki ve aciliyet (30 gün içinde yürürlük). Gerekçesi her kayıtta yazar.
 * **Güvenilirlik:** Taranamayan günler sonraki çalıştırmada telafi edilir; aynı değişiklik iki kez bildirilmez;
@@ -233,9 +240,11 @@ sağlayıcıya geçilir; hepsi doluysa rapor AI olmadan gider ve analiz ertesi g
    AJAX uç noktasından izlenir (v0.1.7); liste büyük ölçüde Resmî Gazete'nin aynasıdır (gecikme ~5 gün). EPİAŞ doğal gaz ve çevresel piyasa duyuruları varsayılan olarak
    kapalı; `check-sources --all` ile doğrulayıp açabilirsiniz.
 5. **Rutin karar ayrımı ve önem seviyesi kural tabanlıdır.** Rutin listesi her zaman bağlantılarıyla verilir.
-6. **Eski–yeni metin karşılaştırması yalnızca izleme listesindeki mevzuat için var.** Resmî Gazete kayıtlarında
-   değişen maddeler değişiklik metninden çıkarılır; konsolide metin güncellenince (mevzuat.gov.tr) değişen
-   maddelerin ESKİ/YENİ hâli ayrı bir "Konsolide metin güncellendi" kaydında verilir.
+6. **Eski metin her zaman bulunamayabilir.** İzleme listesi dışındaki mevzuatta önceki hâl mevzuat.gov.tr
+   başlık aramasıyla bulunur; ad birebir eşleşmezse, site değişikliği aynı gün işlemişse ya da site
+   erişilemezse eski metin gelmez ve raporda bunun nedeni yazar. Sık izlediğiniz mevzuatı izleme listesine
+   eklemek bu riski ortadan kaldırır. Değişen maddeler değişiklik metninden kural tabanlı çıkarılır;
+   fıkra/bent düzeyindeki değişikliklerde maddenin tamamının eski hâli verilir.
 7. **Geçici erişim sorunları:** robots.txt dahil her istek 3 kez denenir; ilk geçişte hiç belge alınamayan
    kaynak çalıştırma sonunda `SOURCE_RETRY_DELAY_SECONDS` (60 sn) beklenip bir kez daha taranır.
 

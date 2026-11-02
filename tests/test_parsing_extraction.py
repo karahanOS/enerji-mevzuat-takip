@@ -211,9 +211,12 @@ def test_degisen_maddeler():
     from enerji_takip.text_utils import html_to_text
 
     arts = extract_amended_articles(html_to_text(html))
-    assert {"madde": "Madde 4", "islem": "değiştirildi"} in arts
-    assert {"madde": "Madde 110", "islem": "eklendi"} in arts
-    assert {"madde": "Geçici Madde 15", "islem": "yürürlükten kaldırıldı"} in arts
+    assert ("Madde 4", "değiştirildi") in [(x["madde"], x["islem"]) for x in arts]
+    assert ("Madde 110", "eklendi") in [(x["madde"], x["islem"]) for x in arts]
+    assert ("Geçici Madde 15", "yürürlükten kaldırıldı") in [(x["madde"], x["islem"]) for x in arts]
+    by = {x["madde"]: x for x in arts}
+    # Değişiklik hükmü (yeni metin) madde kaydında tutulur
+    assert by["Madde 4"]["yeni"].startswith("MADDE") and "değiştirilmiştir" in by["Madde 4"]["yeni"]
     ext = extract_all("X Yönetmeliğinde Değişiklik Yapılmasına Dair Yönetmelik", "YONETMELIK", html_to_text(html), PUB)
     assert "yururlukten_kaldirma" in ext.aspects and "madde_eklenmesi" in ext.aspects
 
@@ -329,3 +332,15 @@ def test_depolama_tarifesi_tadil_kararlari_rutin_sayilir():
     genel = ("Enerji Piyasası Düzenleme Kurulunun tarihli toplantısında; tüm depolama lisansı sahiplerine uygulanacak "
              "depolama tarifeleri usul ve esasları yönetmeliği kabul edilmiştir. Anonim şirketler uyar.")
     assert tax.is_routine(genel, "KURUL_KARARI")[0] is False
+
+
+def test_tirnakli_yeni_madde_metni_degisiklik_hukmune_eklenir():
+    text = ("MADDE 2 – Aynı Yönetmeliğin 14 üncü maddesi aşağıdaki şekilde değiştirilmiştir.\n"
+            "“MADDE 14 – (1) Lisans başvurusu elektronik ortamda yapılır.\n(2) Başvuru 30 gün içinde sonuçlandırılır.”\n"
+            "MADDE 3 – Aynı Yönetmeliğe aşağıdaki geçici madde eklenmiştir.\n"
+            "“GEÇİCİ MADDE 40 – (1) Mevcut başvurular eski hükümlere göre sonuçlandırılır.”\n"
+            "MADDE 4 – Bu Yönetmelik yayımı tarihinde yürürlüğe girer.")
+    arts = {x["madde"]: x for x in extract_amended_articles(text)}
+    assert set(arts) == {"Madde 14", "Geçici Madde 40"}
+    assert "30 gün içinde sonuçlandırılır" in arts["Madde 14"]["yeni"]
+    assert "yürürlüğe girer" not in arts["Madde 14"]["yeni"] and "yürürlüğe girer" not in arts["Geçici Madde 40"]["yeni"]

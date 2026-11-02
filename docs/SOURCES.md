@@ -23,6 +23,11 @@ Kaynak listesi `enerji_takip/varsayilan/sources.yaml` içindedir; değiştirmek 
 ile `config/sources.yaml` oluşturun. Kapalı kaynaklar raporun "Kaynak durumu" tablosunda "İzlenmiyor" olarak görünür. Böylece hangi kaynağın
 kontrol **edilmediği** her gün görülür.
 
+**Eski madde metni (v0.1.12):** RG'de bir mevzuat değiştiğinde değişen maddelerin önceki hâli için önce izleme
+listesinin tabanına bakılır; listede yoksa `POST /anasayfa/MevzuatDatatable` başlık araması (çerez/oturum
+gerekmez, 02.11.2026'da tarayıcıdan doğrulandı) ve iframe sayfası kullanılır. Metin bu değişikliğin işaretini
+(`RG-…-<sayı>` veya kanunlarda `…-<kanun no>/`) zaten taşıyorsa eski metin sayılmaz.
+
 **İzleme listesine mevzuat eklemek:** mevzuat.gov.tr'de mevzuatı açın; adres `…/mevzuat?MevzuatNo=6446&MevzuatTur=1&MevzuatTertip=5`
 biçimindedir. `config/sources.yaml` içinde `items` listesine `{mevzuat_no: 6446, tur: 1, name: …}` ekleyin
 (`no` değil `mevzuat_no`: YAML çıplak `no` anahtarını `false` okur). Tür kodları: 1 Kanun, 7 Yönetmelik,
