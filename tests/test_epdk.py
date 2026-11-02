@@ -127,3 +127,25 @@ def test_isfiletype_bos_kayit_belgesiz_sayilmaz():
     item = {"Title": "T", "Number": "9-1", "Date": "01.10.2026", "FastAccessDetail": [{"ContentId": "Z1=", "IsFileType": None}]}
     docs, no_file = ad.parse_items({"model": [item]}, "x", since=None)
     assert no_file == 0 and docs[0].url.endswith("id=Z1=")
+
+
+def test_bos_yaprak_yanitlari_hata_sayilmaz(settings):
+    """Canlı veride bazı yapraklar {"Type":3} ya da {"model":null} / {"model":[]} döndürür; bu 'karar yok' demektir."""
+    ad = EpdkKararlarAdapter("epdk", {"page_url": PAGE, "post_url": POST, "max_age_days": 100000})
+    answers = {"33883": {"Type": 3}, "33884": {"Type": 1, "model": None}}
+    with respx.mock() as r:
+        r.get("https://www.epdk.gov.tr/robots.txt").respond(404)
+        r.get(PAGE).respond(200, text=HTML)
+        r.post(POST).mock(side_effect=lambda req: httpx.Response(200, json=answers[json.loads(req.content)["fId"]]))
+        out = ad.scan(_fetcher(settings), cursor=None, today=date(2024, 9, 1), state={})
+    assert out.complete and not out.errors and out.documents == []
+
+
+def test_model_liste_degilse_hata(settings):
+    ad = EpdkKararlarAdapter("epdk", {"page_url": PAGE, "post_url": POST})
+    with respx.mock() as r:
+        r.get("https://www.epdk.gov.tr/robots.txt").respond(404)
+        r.get(PAGE).respond(200, text=HTML)
+        r.post(POST).respond(200, json={"model": "bozuk"})
+        out = ad.scan(_fetcher(settings), cursor=None, today=date(2024, 9, 1), state={})
+    assert not out.complete and "liste değil" in out.errors[0]

@@ -29,6 +29,12 @@ Tüm bileşenler ücretsizdir (bkz. [Maliyet](#maliyet--her-bileşen-ücretsiz))
 * **Enerji filtresi:** Elektrik piyasası (PTF, SMF, GÖP, GİP, dengeleme, uzlaştırma, tarifeler, kapasite
   mekanizması, depolama), yenilenebilir enerji (YEKDEM, YEKA, lisanssız üretim, YEK-G), doğal gaz, petrol/LPG,
   karbon/ETS, enerji verimliliği, nükleer. Türkçe eklere dayanıklı kök eşleşmesi kullanır.
+* **OCR yedeği:** EPDK karar PDF'lerinin bir kısmı taranmış görüntü ya da bozuk kodlamalıdır. `pdftoppm` ve
+  `tesseract` kuruluysa (Türkçe dil paketi `tur` ilk kullanımda otomatik indirilir) metin OCR ile okunur.
+  `OCR_ENABLED`, `OCR_MAX_PAGES` ve `OCR_LANG` ile ayarlanır; araçlar yoksa kayıt "metin okunamadı, inceleme
+  gerekli" olarak raporlanır.
+* **Kontrol listesi:** Raporun sonunda analiz dışı bırakılan belgeler ad ve kaynakla listelenir. Enerjiyle ilgili
+  görünüp elenenler ayrıca vurgulanır (`REPORT_EXCLUDED_MAX`).
 * **Rutin karar ayrımı:** Resmî Gazete'de her gün çıkan tek şirkete özgü EPDK kararları (lisans tadili, önlisans
   süre uzatımı vb.) ayrı tutulur. Piyasa genelini etkileyen kararlar (fiyat limitleri, tarifeler, usul ve
   esaslar) öne çıkar.
@@ -223,7 +229,7 @@ sağlayıcıya geçilir; hepsi doluysa rapor AI olmadan gider ve analiz ertesi g
 3. **GitHub Actions IP'leri yurt dışındadır.** Bazı kamu siteleri yurt dışı erişimi kısıtlayabilir. Böyle bir
    kaynak Actions'ta sürekli "erişilemedi" görünürse yerelde çalıştırın.
 4. **İzlenmeyen kaynaklar:** mevzuat.gov.tr JavaScript gerektiriyor. EPDK kurul kararları listesi sayfa içi
-   AJAX uç noktasından izlenir (v0.1.7). EPİAŞ doğal gaz ve çevresel piyasa duyuruları varsayılan olarak
+   AJAX uç noktasından izlenir (v0.1.7); liste büyük ölçüde Resmî Gazete'nin aynasıdır (gecikme ~5 gün). EPİAŞ doğal gaz ve çevresel piyasa duyuruları varsayılan olarak
    kapalı; `check-sources --all` ile doğrulayıp açabilirsiniz.
 5. **Rutin karar ayrımı ve önem seviyesi kural tabanlıdır.** Rutin listesi her zaman bağlantılarıyla verilir.
 6. **Eski–yeni metin karşılaştırması yok.** Değişen maddeler değişiklik metninden çıkarılır.
@@ -250,7 +256,7 @@ enerji-mevzuat-takip/
 ├── enerji_takip/
 │   ├── mcp_server.py       MCP sunucusu (anahtarsız)
 │   ├── varsayilan/         sources.yaml · taxonomy.yaml · profile.yaml · env.example
-│   ├── sources/            resmi_gazete.py · listing.py · rss.py · registry.py
+│   ├── sources/            resmi_gazete.py · listing.py · rss.py · epdk.py · ocr.py · registry.py
 │   ├── detection/          relevance.py (enerji filtresi, rutin ayrımı) · extract.py · engine.py
 │   ├── analysis/           llm.py (ücretsiz sağlayıcı zinciri) · prompts.py · schema.py · analyzer.py
 │   ├── reporting/          builder.py · mailer.py · templates/
