@@ -130,8 +130,11 @@ class EpdkKararlarAdapter(HtmlListingAdapter):
             try:
                 res = fetcher.post_json(post_url, {"fId": fid}, referer=page_url)
                 payload = json.loads(res.text or res.content.decode("utf-8", "replace"))
-                if not isinstance(payload, dict) or "model" not in payload:
-                    raise ParseError(f"Beklenmeyen yanıt biçimi (fId={fid})")
+                if not isinstance(payload, dict):
+                    raise ParseError(f"Beklenmeyen yanıt biçimi (fId={fid}): JSON nesnesi değil")
+                if not isinstance(payload.get("model") or [], list):
+                    raise ParseError(f"Beklenmeyen yanıt biçimi (fId={fid}): 'model' liste değil")
+                # 'model' yok ya da null ise yaprakta karar yoktur (canlı veride 6 yaprak boş)
                 docs, no_file = self.parse_items(payload, label, since=since)
             except RobotsDisallowed as exc:
                 outcome.access_status, outcome.complete = "robots_engeli", False
