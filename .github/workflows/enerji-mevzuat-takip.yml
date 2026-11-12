@@ -25,6 +25,16 @@ on:
         description: "E-posta gönderilsin mi?"
         type: boolean
         default: true
+      islem:
+        description: "rapor: tarama + rapor · kaynak-kontrolu: yalnızca kaynaklara erişimi ve ayrıştırmayı dener (veri değişmez, e-posta gitmez)"
+        type: choice
+        options: [rapor, kaynak-kontrolu]
+        default: rapor
+      baslangic:
+        description: "(İsteğe bağlı) Resmî Gazete'yi bu tarihten itibaren tara, YYYY-AA-GG (en fazla 14 gün geriye). İlk kurulumda geçmişi görmek için."
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: write          # "veri" dalına yazmak için
@@ -50,7 +60,7 @@ jobs:
         run: |
           if [ -n "$SMTP_USERNAME" ] && [ -n "$SMTP_PASSWORD" ] && [ -n "$EMAIL_TO" ]; then
             echo "hazir=true" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.gonder }}" = "false" ]; then
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && { [ "${{ inputs.gonder }}" = "false" ] || [ "${{ inputs.islem }}" = "kaynak-kontrolu" ]; }; then
             echo "hazir=true" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::SMTP_USERNAME, SMTP_PASSWORD ve EMAIL_TO secret'ları tanımlı değil; tarama atlandı. Kurulum: README → 'Günlük e-posta'."
@@ -77,8 +87,16 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq poppler-utils tesseract-ocr tesseract-ocr-tur
 
+      - name: Kaynak kontrolü (yalnızca elle, islem=kaynak-kontrolu)
+        if: steps.kontrol.outputs.hazir == 'true' && inputs.islem == 'kaynak-kontrolu'
+        env:
+          ENERJI_TAKIP_HOME: ${{ github.workspace }}
+          DATABASE_URL: sqlite:///${{ runner.temp }}/kontrol.db
+          HTTP_USER_AGENT: ${{ vars.HTTP_USER_AGENT }}
+        run: python -m enerji_takip check-sources --all
+
       - name: Önceki veriyi yükle ("veri" dalı)
-        if: steps.kontrol.outputs.hazir == 'true'
+        if: steps.kontrol.outputs.hazir == 'true' && inputs.islem != 'kaynak-kontrolu'
         run: |
           mkdir -p veri
           if git ls-remote --exit-code --heads origin veri >/dev/null 2>&1; then
@@ -89,7 +107,7 @@ jobs:
           ls -la veri
 
       - name: Tarama, analiz ve rapor
-        if: steps.kontrol.outputs.hazir == 'true'
+        if: steps.kontrol.outputs.hazir == 'true' && inputs.islem != 'kaynak-kontrolu'
         env:
           ENERJI_TAKIP_HOME: ${{ github.workspace }}
           DATABASE_URL: sqlite:///veri/enerji_takip.db
@@ -107,14 +125,22 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           HTTP_USER_AGENT: ${{ vars.HTTP_USER_AGENT }}
         run: |
+          ARGS=""
+          BASLANGIC="${{ inputs.baslangic }}"
+          if [ -n "$BASLANGIC" ]; then
+            if ! echo "$BASLANGIC" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+              echo "::error::baslangic YYYY-AA-GG biçiminde olmalı (ör. 2026-11-01)"; exit 1
+            fi
+            ARGS="--since $BASLANGIC"
+          fi
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.gonder }}" = "false" ]; then
-            python -m enerji_takip run --no-send
+            python -m enerji_takip run --no-send $ARGS
           else
-            python -m enerji_takip run
+            python -m enerji_takip run $ARGS
           fi
 
       - name: Veriyi kaydet ("veri" dalına)
-        if: always() && steps.kontrol.outputs.hazir == 'true'
+        if: always() && steps.kontrol.outputs.hazir == 'true' && inputs.islem != 'kaynak-kontrolu'
         run: |
           cd veri
           rm -rf .git
@@ -129,7 +155,7 @@ jobs:
           done
 
       - name: Yedek (artifact, 14 gün)
-        if: always() && steps.kontrol.outputs.hazir == 'true'
+        if: always() && steps.kontrol.outputs.hazir == 'true' && inputs.islem != 'kaynak-kontrolu'
         uses: actions/upload-artifact@v4
         with:
           name: enerji-takip-veri-${{ github.run_id }}

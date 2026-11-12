@@ -4,6 +4,9 @@ RSS veya API sunmayan kurum sitelerinde (SGK, EPDK, KVKK, UAB, ÇSGB, Rekabet)
 liste sayfasındaki bağlantılar, yapılandırmadaki adres kalıbıyla süzülür.
 Daha önce görülmemiş her bağlantı yeni belge kabul edilir.
 
+Duyuru sayfası yalnızca "Duyuru metni için tıklayınız" gibi bir bağlantı içeriyorsa (ör. UHDGM),
+``attachment_link_pattern`` ile eşleşen ilk ek (PDF/DOCX) indirilir ve metni sayfa metnine eklenir.
+
 İlk çalıştırmada liste sayfasında zaten bulunan kayıtlar "başlangıç (baseline)"
 olarak işaretlenir ve raporlanmaz; böylece ilk e-posta eski duyurularla dolmaz.
 """
@@ -29,10 +32,12 @@ class HtmlListingAdapter(SourceAdapter):
         min_len = int(self.config.get("title_min_length", 12))
         soup = BeautifulSoup(html, "lxml")
         found: dict[str, FetchedDocument] = {}
+        self.last_pattern_matches = 0
         for a in soup.find_all("a", href=True):
             url = urldefrag(urljoin(page_url, a["href"].strip()))[0]
             if not pattern.search(url):
                 continue
+            self.last_pattern_matches += 1
             title = normalize_space(a.get_text(" ", strip=True)) or normalize_space(a.get("title", ""))
             if len(title) < min_len:
                 # Bazı listelerde bağlantı metni "Devamı" gibi kısa olur; başlık üst blokta
@@ -69,6 +74,12 @@ class HtmlListingAdapter(SourceAdapter):
             try:
                 result = fetcher.get(list_url)
                 docs = self._parse(result.text, result.url)
+                if not docs and self.last_pattern_matches:
+                    # Kalıba uyan bağlantılar var ama hepsi hariç tutuldu (ör. yalnızca personel alımı duyuruları):
+                    # sayfa yapısı sağlam, yeni ilgili kayıt yok demektir.
+                    coverage["liste_sayfalari"][list_url] = (f"0 kayıt ({self.last_pattern_matches} bağlantı "
+                                                             "hariç tutma kalıbıyla elendi)")
+                    continue
                 if not docs:
                     raise ParseError(
                         f"Liste sayfasında kalıba uyan bağlantı bulunamadı ({list_url}); sayfa yapısı değişmiş olabilir."
@@ -103,12 +114,32 @@ class HtmlListingAdapter(SourceAdapter):
             return super().fetch_text(fetcher, doc)
         selector = self.config.get("content_selector")
         text = ""
+        soup = BeautifulSoup(result.text, "lxml")
         if selector:
-            soup = BeautifulSoup(result.text, "lxml")
             node = soup.select_one(selector)
             if node is not None:
                 text = html_to_text(str(node))
         if not text:
             text = html_to_text(result.text)
+        attachment = self._attachment_url(soup, result.url)
+        if attachment:
+            att = super().fetch_text(fetcher, FetchedDocument(
+                source_key=doc.source_key, external_id=attachment, title=doc.title, url=attachment,
+                doc_type=doc.doc_type, institution=doc.institution))
+            if att.text:
+                if not doc.pdf_url:
+                    doc.pdf_url = attachment
+                text = (text + "\n\n--- EK BELGE METNİ ---\n" + att.text).strip()
         status = "tam" if len(text) >= 400 else ("kisa" if text else "okunamadi")
         return DocumentText(text=text, status=status)
+
+    def _attachment_url(self, soup: BeautifulSoup, page_url: str) -> str | None:
+        pattern = self.config.get("attachment_link_pattern")
+        if not pattern:
+            return None
+        rx = re.compile(pattern, re.I)
+        for a in soup.find_all("a", href=True):
+            url = urldefrag(urljoin(page_url, a["href"].strip()))[0]
+            if rx.search(url):
+                return url
+        return None

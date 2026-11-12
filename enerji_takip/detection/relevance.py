@@ -79,6 +79,8 @@ class Taxonomy:
         self.routine_specific_markers = [_stem_pattern(p) for p in routine.get("company_specific_markers", [])]
         self.routine_specific_patterns = [(p, _stem_pattern(p)) for p in routine.get("company_specific_patterns", [])]
         self.routine_blockers = [(p, _stem_pattern(p)) for p in routine.get("market_wide_markers", [])]
+        # Kendi şirketinizin unvanı: geçtiği belge rutin sayılmaz, her zaman ilgili kabul edilir
+        self.own_company = [(p.lstrip("="), _stem_pattern(p)) for p in data.get("own_company_markers", [])]
 
     @classmethod
     def load(cls, path: Path) -> "Taxonomy":
@@ -92,6 +94,12 @@ class Taxonomy:
 
     def is_core(self, key: str) -> bool:
         return any(c.key == key and c.core for c in self.categories)
+
+    def own_company_hits(self, text: str) -> list[str]:
+        if not self.own_company or not text:
+            return []
+        norm = normalize_for_match(text)
+        return [p for p, pat in self.own_company if pat.search(norm)]
 
     def match(self, text: str) -> dict[str, set[str]]:
         norm = normalize_for_match(text)
@@ -128,6 +136,9 @@ class Taxonomy:
                      is_gazette: bool = True) -> RelevanceResult:
         if skip_reason or (section and section in self.skip_sections):
             return RelevanceResult(ATLANDI, reason=skip_reason or f"{section} bölümü analiz dışı")
+        own = self.own_company_hits(title)
+        if own:
+            return RelevanceResult(ALAKALI, 10.0, [], own, f"Başlıkta şirket adı geçiyor ({', '.join(own)})")
         hits = self.match(title)
         strong = self._strong(hits)
         norm_title = normalize_for_match(title)
@@ -154,6 +165,8 @@ class Taxonomy:
         """Tek bir şirkete/tesise özgü rutin kurul kararı mı? (lisans tadili, süre uzatımı vb.)"""
         if doc_type not in self.routine_doc_types or not text or len(text) > self.routine_max_chars:
             return False, ""
+        if self.own_company_hits(text):
+            return False, ""
         norm = normalize_for_match(text)
         if not any(p.search(norm) for p in self.routine_company):
             return False, ""
@@ -169,6 +182,10 @@ class Taxonomy:
         return True, "Tek şirkete özgü karar: " + ", ".join(hits[:3])
 
     def assess_text(self, text: str, prior: RelevanceResult) -> RelevanceResult:
+        own = self.own_company_hits(text)
+        if own:
+            return RelevanceResult(ALAKALI, prior.score + 10, prior.categories, sorted(set(prior.keywords) | set(own)),
+                                   f"Metinde şirket adı geçiyor ({', '.join(own)})")
         hits = self.match(text)
         strong = self._strong(hits)
         distinct = sum(len(v) for v in strong.values())

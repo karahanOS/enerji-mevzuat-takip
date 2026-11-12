@@ -154,6 +154,35 @@ kurulumu bitmemiş bir kopyada hata e-postası gelmez.
 deponuza ekleyin. `config/profile.yaml`, AI'nın "benim açımdan önemi" bölümünü sizin ilgi alanlarınıza göre
 yazmasını sağlar. `config/` varsa varsayılanların yerine o dosyalar kullanılır.
 
+
+**Başka bir alan için kullanma (v0.1.13):** Araç enerjiye bağlı değildir. `config/profile.yaml` içine bir `alan:`
+bölümü eklerseniz AI isteminin uzmanlık tanımı, ön eleme konuları, etki düzeyi tanımları ve etiketleri, önem
+kriterleri ile rapor ve e-posta başlıkları oradan okunur. `config/taxonomy.yaml` ilgililik köklerini,
+`config/sources.yaml` kaynakları belirler. Örnek kullanım: karayoluyla akaryakıt/LPG taşıyan bir şirketin
+tehlikeli madde (ADR), İSG ve çevre mevzuatı takibi. Alan profili tanımlı değilse davranış enerji varsayılanıyla
+birebir aynıdır.
+
+```yaml
+alan:
+  rapor_basligi: Taşımacılık Mevzuatı          # e-posta konusu ve rapor başlığı
+  e_posta_etiketi: MEVZUAT TAKİP               # konudaki [ETİKET]
+  uzmanlik: karayoluyla tehlikeli madde taşımacılığı, İSG ve çevre mevzuatı
+  on_eleme_konulari: tehlikeli madde taşımacılığı, İSG veya çevre mevzuatıyla
+  etki_ozne: şirket
+  etki_basligi: Şirkete etkisi
+  etki_duzeyleri: {genel: "tüm taşımacıları/işverenleri doğrudan bağlar", sinirli: "tek bir şirkete özgü"}
+  onemli_nitelikler: [yeni_yukumluluk, yaptirim, lisans_rejimi_degisikligi]
+  onem_kriterleri: "KRITIK = şirketi doğrudan bağlayan yeni yükümlülük ve yürürlüğü 30 gün içinde; ..."
+```
+
+`taxonomy.yaml`'a `own_company_markers: [şirket unvanı]` eklenirse unvanın geçtiği karar (ör. tek şirkete özgü bir
+lisans veya ceza kararı) rutin sayılmaz, her zaman ilgili kabul edilir ve "mutlaka kontrol edin" notuyla öne çıkar.
+Kurum duyurusu yalnızca "Duyuru metni için tıklayınız" bağlantısı içeriyorsa `attachment_link_pattern` ile ek
+PDF/DOCX metni de okunur.
+
+**Kaynak kontrolü:** Actions → iş akışı → Run workflow → `islem: kaynak-kontrolu` seçilirse yalnızca
+`check-sources --all` çalışır; veri dalı değişmez, e-posta gitmez. GitHub sunucularından hangi kaynaklara
+erişilebildiğini görmek için ilk kurulumda kullanın.
 ---
 
 ## 3. Kendi bilgisayarınızda (CLI)

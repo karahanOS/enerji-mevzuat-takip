@@ -10,15 +10,15 @@ from __future__ import annotations
 from datetime import date
 
 from .detection.relevance import Taxonomy
+from .domain import DEFAULT_DOMAIN, Domain
 from .models import RegulatoryChange
 
 LEVEL_ORDER = ["DUSUK", "ORTA", "YUKSEK", "KRITIK"]
 LEVEL_LABELS = {"KRITIK": "KRİTİK", "YUKSEK": "YÜKSEK", "ORTA": "ORTA", "DUSUK": "DÜŞÜK"}
 IMPACT_POINTS = {"genel": 3, "sektorel": 2, "belirsiz": 1, "sinirli": 0, "yok": -3}
-IMPACT_LABELS = {"genel": "Piyasa geneli", "sektorel": "Sektörel", "sinirli": "Sınırlı (tek şirket/proje)",
-                 "belirsiz": "Belirsiz", "yok": "Piyasa etkisi yok"}
-MARKET_ASPECTS = {"fiyat_tarife_degisikligi", "piyasa_kurali_degisikligi", "destek_tesvik_degisikligi",
-                  "lisans_rejimi_degisikligi"}
+IMPACT_LABELS = DEFAULT_DOMAIN.etki_etiketleri
+MARKET_ASPECTS = set(DEFAULT_DOMAIN.onemli_nitelikler)
+OWN_COMPANY_POINTS = 3
 
 
 def _days_until(target: str | date | None, today: date) -> int | None:
@@ -28,14 +28,21 @@ def _days_until(target: str | date | None, today: date) -> int | None:
     return (d - today).days
 
 
-def classify(change: RegulatoryChange, analysis: dict | None, today: date, taxonomy: Taxonomy) -> tuple[str, int, list[str], bool]:
+def classify(change: RegulatoryChange, analysis: dict | None, today: date, taxonomy: Taxonomy,
+             domain: Domain | None = None) -> tuple[str, int, list[str], bool]:
     """(seviye, puan, gerekçeler, inceleme_gerekli) döndürür."""
+    d = domain or DEFAULT_DOMAIN
+    full_text = getattr(getattr(change, "document", None), "full_text", None) or ""
+    own = taxonomy.own_company_hits(full_text + " " + (getattr(getattr(change, "document", None), "title", None) or ""))
     if change.status == "rutin":
         return "DUSUK", 0, ["Tek şirkete/tesise özgü rutin karar (kural tabanlı tespit)"], False
 
     score = 0
     reasons: list[str] = []
     review = False
+    if own:
+        score += OWN_COMPANY_POINTS
+        reasons.append(f"+{OWN_COMPANY_POINTS} metinde şirket adı geçiyor ({', '.join(own[:2])})")
 
     core = [c for c in (change.categories or []) if taxonomy.is_core(c)]
     if core:
@@ -77,23 +84,26 @@ def classify(change: RegulatoryChange, analysis: dict | None, today: date, taxon
             reasons.append(f"+1 yürürlük/uyum tarihine {nearest} gün")
         review = True
         level = "YUKSEK" if score >= 4 else "ORTA" if score >= 2 else "DUSUK"
+        if own and level == "DUSUK":
+            level = "ORTA"
         return level, score, reasons, review
 
     impact = (analysis.get("piyasa_etkisi") or {}).get("duzey", "belirsiz")
     points = IMPACT_POINTS.get(impact, 1)
     score += points
-    reasons.append(f"{points:+d} piyasa etkisi: {IMPACT_LABELS.get(impact, impact)}")
+    reasons.append(f"{points:+d} {d.etki_ozne} etkisi: {d.impact_label(impact)}")
 
-    market_change = bool(aspects & MARKET_ASPECTS) or bool(set(analysis.get("degisiklik_nitelikleri", [])) & MARKET_ASPECTS)
+    important = set(d.onemli_nitelikler)
+    market_change = bool(aspects & important) or bool(set(analysis.get("degisiklik_nitelikleri", [])) & important)
     if market_change:
         score += 2
-        reasons.append("+2 fiyat/tarife, piyasa kuralı, destek veya lisans rejimi değişikliği")
+        reasons.append(f"+2 {d.onemli_nitelik_gerekcesi}")
 
     obligation = (analysis.get("yeni_yukumluluk") or {}).get("var_mi") == "evet" or \
         (analysis.get("yukumluluk_degisikligi") or {}).get("var_mi") == "evet"
     if obligation:
         score += 1
-        reasons.append("+1 piyasa katılımcıları için yeni/değişen yükümlülük")
+        reasons.append(f"+1 {d.yukumluluk_ozne} için yeni/değişen yükümlülük")
     if (analysis.get("yaptirim") or {}).get("var_mi") == "evet":
         score += 1
         reasons.append("+1 yaptırım öngörülüyor")
@@ -114,9 +124,10 @@ def classify(change: RegulatoryChange, analysis: dict | None, today: date, taxon
 
     level = "KRITIK" if score >= 9 else "YUKSEK" if score >= 6 else "ORTA" if score >= 3 else "DUSUK"
 
-    if level == "KRITIK" and impact != "genel":
+    if level == "KRITIK" and impact != "genel" and not own:
         level = "YUKSEK"
-        reasons.append("KRİTİK için piyasa geneline etki şartı sağlanmadı → YÜKSEK")
+        reasons.append("KRİTİK için piyasa geneline etki şartı sağlanmadı → YÜKSEK" if d.is_default else
+                       f"KRİTİK için '{d.impact_label('genel')}' etki şartı sağlanmadı → YÜKSEK")
     if level == "KRITIK" and not ((nearest is not None and nearest <= 30) or ai_level == "KRITIK"):
         level = "YUKSEK"
         reasons.append("Yürürlüğe " + (f"{nearest} gün var" if nearest is not None else "ilişkin kesin tarih yok")
@@ -128,11 +139,20 @@ def classify(change: RegulatoryChange, analysis: dict | None, today: date, taxon
     return level, score, reasons, review
 
 
-def apply_classification(change: RegulatoryChange, analysis: dict | None, today: date, taxonomy: Taxonomy) -> None:
-    level, score, reasons, review = classify(change, analysis, today, taxonomy)
+def apply_classification(change: RegulatoryChange, analysis: dict | None, today: date, taxonomy: Taxonomy,
+                         domain: Domain | None = None) -> None:
+    level, score, reasons, review = classify(change, analysis, today, taxonomy, domain)
     change.importance = level
     change.importance_score = score
     change.importance_reasons = reasons
+    doc = getattr(change, "document", None)
+    if doc is not None and taxonomy.own_company_hits((doc.full_text or "") + " " + (doc.title or "")):
+        rr = list(change.review_reasons or [])
+        msg = "Metinde şirket adı geçiyor; doğrudan şirketle ilgili olabilir, mutlaka kontrol edin"
+        if msg not in rr:
+            rr.append(msg)
+        change.review_reasons = rr
+        change.needs_review = True
     if review and analysis is not None:
         rr = list(change.review_reasons or [])
         msg = "Önem seviyesi sistem ile AI arasında belirgin farklı"

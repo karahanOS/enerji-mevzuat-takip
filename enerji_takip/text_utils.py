@@ -77,6 +77,11 @@ _TR_DATE_RE = re.compile(
     re.IGNORECASE,
 )
 _NUM_DATE_RE = re.compile(r"\b(\d{1,2})[./](\d{1,2})[./](\d{4})\b")
+# Kısaltılmış ay adları, boşluklu ya da bitişik ("05Eki2026", "02 Şub 2023") — ör. UHDGM duyuru listesi
+_TR_SHORT_MONTHS = {"oca": 1, "şub": 2, "mar": 3, "nis": 4, "may": 5, "haz": 6, "tem": 7, "ağu": 8, "eyl": 9,
+                    "eki": 10, "kas": 11, "ara": 12}
+_TR_SHORT_DATE_RE = re.compile(r"(?<!\d)(\d{1,2})\s*(Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara)[\s.*]*(\d{4})\b",
+                               re.IGNORECASE)
 
 
 def parse_tr_date(text: str) -> date | None:
@@ -92,6 +97,12 @@ def parse_tr_date(text: str) -> date | None:
         try:
             return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
         except ValueError:
+            return None
+    m = _TR_SHORT_DATE_RE.search(text)
+    if m:
+        try:
+            return date(int(m.group(3)), _TR_SHORT_MONTHS[tr_lower(m.group(2))[:3]], int(m.group(1)))
+        except (ValueError, KeyError):
             return None
     return None
 
