@@ -99,7 +99,7 @@ için, ör. iletişim adresinizle), `ENERJI_TAKIP_HOME` (veri dizini). `uvx bulu
 
 | Araç | Ne yapar |
 |---|---|
-| `guncelle(zorla, gecmis_gun)` | Kaynakları tarar, yeni değişiklikleri döndürür. 30 dakikada bir sınırlıdır. İlk kullanımda `gecmis_gun=7` ile son haftayı alın (en fazla 14). |
+| `guncelle(zorla, gecmis_gun)` | Kaynakları tarar, yeni değişiklikleri döndürür. 30 dakikada bir sınırlıdır (`zorla=True` veya `gecmis_gun` verilirse sınır uygulanmaz; yalnızca başarılı/kısmi taramalar sayılır). İlk kullanımda `gecmis_gun=7` ile son haftayı alın (en fazla 14). |
 | `son_degisiklikler(gun, onem, kategori, rutin_dahil, limit)` | Son N günün değişiklikleri, önem sırasıyla |
 | `ara(sorgu, gun, limit)` | Başlık ve tam metinde arama ("YEKDEM", "azami uzlaştırma fiyatı") |
 | `degisiklik_detayi(degisiklik_id)` | Değiştirilen mevzuat, maddeler, yürürlük tarihleri ve dayanakları, önem gerekçesi |

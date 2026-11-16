@@ -119,6 +119,7 @@ def guncelle(zorla: bool = False, gecmis_gun: int = 0) -> dict:
     Args:
         zorla: Son 30 dakika içinde tarama yapılmışsa bile yeniden tara.
         gecmis_gun: Resmî Gazete'yi bugünden bu kadar gün geriye tara (en fazla 14). 0 = son taramadan bu yana.
+            Verilirse 30 dakika sınırı uygulanmaz. Hatayla biten taramalar sınırı başlatmaz.
     """
     _ensure_ready()
     settings = get_settings()
