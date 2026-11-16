@@ -1,4 +1,4 @@
-{% if report_type == 'kritik' %}KRİTİK ENERJİ MEVZUATI BİLDİRİMİ{% else %}GÜNLÜK ENERJİ MEVZUATI RAPORU{% endif %}
+{% if report_type == 'kritik' %}KRİTİK {{ domain.rapor_basligi | tr_upper }} BİLDİRİMİ{% else %}GÜNLÜK {{ domain.rapor_basligi | tr_upper }} RAPORU{% endif %}
 
 
 Rapor tarihi: {{ report_date }}
@@ -19,7 +19,7 @@ Notlar:
 {% endfor %}
 {% endif %}
 {% if total == 0 and routine_count == 0 %}
-{% if is_complete %}Bu tarama döneminde enerji sektörüyle ilgili yeni bir düzenleme tespit edilmedi.{% else %}Taranabilen kaynaklarda yeni düzenleme bulunmadı; tarama eksik olduğundan bu sonuç kesin değildir.{% endif %}
+{% if is_complete %}Bu tarama döneminde {{ domain.konu }} ile ilgili yeni bir düzenleme tespit edilmedi.{% else %}Taranabilen kaynaklarda yeni düzenleme bulunmadı; tarama eksik olduğundan bu sonuç kesin değildir.{% endif %}
 
 Taranan belge: {{ docs_scanned }} · İlgisiz bulunan: {{ docs_filtered }} · Analiz dışı: {{ docs_skipped }}
 {% endif %}
@@ -38,7 +38,7 @@ Yürürlük tarihi: {{ it.effective | join('; ') }}{{ it.effective_note }}
 Önem seviyesi: {{ it.importance }}{% if it.needs_review %} (KONTROL ET){% endif %}
 
 İlgili alanlar: {{ it.areas | join(', ') }}
-{% if it.market_items %}Etkilenen piyasa unsurları: {{ it.market_items | join(', ') }}
+{% if it.market_items %}{{ domain.etkilenen_unsurlar_basligi }}: {{ it.market_items | join(', ') }}
 {% endif %}
 {% if it.who %}Kimler etkilenir: {{ it.who | join(', ') }}
 {% endif %}
@@ -73,11 +73,11 @@ Eskiden / Şimdi
 {% endif %}
 
 {% endif %}
-Piyasaya etkisi ({{ it.impact_level }})
+{{ domain.etki_basligi }} ({{ it.impact_level }})
 {{ it.impact }}
 {% if it.personal %}
 
-Benim açımdan önemi
+{{ domain.ilgi_basligi }}
 {{ it.personal }}
 {% endif %}
 {% if it.provisions %}
@@ -139,7 +139,7 @@ Taranan belge: {{ docs_scanned }} · İlgisiz bulunan: {{ docs_filtered }} · An
 {% if excluded.irrelevant or excluded.skipped or excluded.skipped_relevant %}
 
 KONTROL İÇİN: ELENEN BELGELER (bu taramada ilk kez görülenler)
-{% for key, label in (("skipped_relevant", "ANALİZ DIŞI BIRAKILDI ama enerjiyle ilgili görünüyor — lütfen kontrol edin"), ("irrelevant", "İlgisiz bulundu"), ("skipped", "Analiz dışı (ilan vb.)")) %}
+{% for key, label in (("skipped_relevant", "ANALİZ DIŞI BIRAKILDI ama {{ domain.konu_kisa }} ilgili görünüyor — lütfen kontrol edin"), ("irrelevant", "İlgisiz bulundu"), ("skipped", "Analiz dışı (ilan vb.)")) %}
 {% if excluded[key] %}
 
 {{ label }} ({{ excluded[key ~ "_total"] }})

@@ -10,11 +10,12 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..classification import IMPACT_LABELS, LEVEL_LABELS, LEVEL_ORDER
+from ..classification import LEVEL_LABELS, LEVEL_ORDER
+from ..domain import DEFAULT_DOMAIN, Domain
 from ..detection.extract import ASPECT_LABELS, CHANGE_TYPE_LABELS, DOC_TYPE_LABELS
 from ..detection.relevance import Taxonomy
 from ..models import EmailReport, EmailReportItem, RegulatoryChange, RegulatoryDocument, RegulatorySource
-from ..text_utils import format_tr_date, normalize_space
+from ..text_utils import format_tr_date, normalize_space, tr_upper
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 _env = Environment(
@@ -23,6 +24,7 @@ _env = Environment(
     trim_blocks=True,
     lstrip_blocks=True,
 )
+_env.filters["tr_upper"] = tr_upper
 
 LEVEL_COLORS = {"KRITIK": "#b42318", "YUKSEK": "#c4320a", "ORTA": "#b54708", "DUSUK": "#475467"}
 EFFECTIVE_STATUS_LABELS = {
@@ -183,7 +185,7 @@ def _comparison_view(chg: RegulatoryChange, a: dict | None) -> dict:
             "previous_note": note}
 
 
-def _item_view(n: int, chg: RegulatoryChange, taxonomy: Taxonomy) -> dict:
+def _item_view(n: int, chg: RegulatoryChange, taxonomy: Taxonomy, domain: Domain = DEFAULT_DOMAIN) -> dict:
     doc = chg.document
     analysis = chg.latest_valid_analysis
     a = analysis.parsed if analysis else None
@@ -224,7 +226,7 @@ def _item_view(n: int, chg: RegulatoryChange, taxonomy: Taxonomy) -> dict:
         view = {
             "summary": a["ozet"],
             "impact": impact["aciklama"],
-            "impact_level": IMPACT_LABELS.get(impact["duzey"], impact["duzey"]),
+            "impact_level": domain.impact_label(impact["duzey"]),
             "personal": a.get("kisisel_ilgi") or "",
             "market_items": a.get("etkilenen_piyasa_unsurlari") or [],
             "who": a.get("kimler_etkilenir") or [],
@@ -286,16 +288,25 @@ def _routine_view(chg: RegulatoryChange) -> dict:
     }
 
 
+def _disclaimer(domain: Domain) -> str:
+    if domain.sorumluluk_reddi:
+        return domain.sorumluluk_reddi
+    if domain.is_default:
+        return DISCLAIMER
+    return DISCLAIMER.replace("kişisel kullanım için ", "").replace("veya yatırım tavsiyesi ", "")
+
+
 def build_report(session: Session, inp: ReportInput, changes: list[RegulatoryChange], taxonomy: Taxonomy,
-                 tz: str) -> EmailReport:
+                 tz: str, domain: Domain | None = None) -> EmailReport:
+    domain = domain or DEFAULT_DOMAIN
     main = [c for c in changes if c.status != "rutin"]
     routine = [c for c in changes if c.status == "rutin"]
-    items = [_item_view(i + 1, c, taxonomy) for i, c in enumerate(main)]
+    items = [_item_view(i + 1, c, taxonomy, domain) for i, c in enumerate(main)]
     counts = {lvl: sum(1 for c in main if c.importance == lvl) for lvl in LEVEL_ORDER}
     if inp.report_type == "kritik":
-        subject = f"[ENERJİ MEVZUAT] {inp.report_date.isoformat()} | KRİTİK Enerji Mevzuatı Değişikliği"
+        subject = f"[{domain.e_posta_etiketi}] {inp.report_date.isoformat()} | KRİTİK {domain.rapor_basligi} Değişikliği"
     else:
-        subject = f"[ENERJİ MEVZUAT] {inp.report_date.isoformat()} | Günlük Enerji Mevzuatı Değişiklikleri"
+        subject = f"[{domain.e_posta_etiketi}] {inp.report_date.isoformat()} | Günlük {domain.rapor_basligi} Değişiklikleri"
     if not inp.is_complete:
         subject += " | EKSİK TARAMA"
     excluded = excluded_documents(session, inp.excluded_since, inp.excluded_max, taxonomy)
@@ -322,7 +333,8 @@ def build_report(session: Session, inp: ReportInput, changes: list[RegulatoryCha
         "docs_filtered": inp.docs_filtered,
         "docs_skipped": inp.docs_skipped,
         "ai_usage": inp.ai_usage,
-        "disclaimer": DISCLAIMER,
+        "disclaimer": _disclaimer(domain),
+        "domain": domain,
         "level_colors": LEVEL_COLORS,
     }
     html = _env.get_template("report.html.j2").render(**ctx)

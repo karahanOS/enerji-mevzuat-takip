@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from .analysis.analyzer import MAX_ANALYSIS_ATTEMPTS_TOTAL, RegulatoryAnalyzer, load_profile
 from .analysis.llm import LLMChain, build_chain
 from .classification import apply_classification
+from .domain import Domain
 from .config import Settings, get_settings
 from .db import check_connection, init_db, session_scope, set_setting, get_setting, with_db_retry
 from .detection.engine import ChangeDetectionEngine, DetectionStats
@@ -136,6 +137,7 @@ class Pipeline:
         self.now = now
         self.taxonomy = load_taxonomy(str(self.settings.taxonomy_file))
         self.profile = load_profile(self.settings)
+        self.domain = Domain.from_profile(self.profile)
         self.analysis_chain: LLMChain | None = None
         self.triage_chain: LLMChain | None = None
 
@@ -275,7 +277,7 @@ class Pipeline:
             # analiz kullanıcının kendi asistanına bırakılır.
             analyzed = 0
             for chg in session.scalars(select(RegulatoryChange).where(RegulatoryChange.importance.is_(None))):
-                apply_classification(chg, None, today, self.taxonomy)
+                apply_classification(chg, None, today, self.taxonomy, self.domain)
             session.commit()
         else:
             analyzed = self._analyze_pending(session, run, today)
@@ -425,11 +427,11 @@ class Pipeline:
             has_valid = chg.latest_valid_analysis is not None
             if chg.status == "inceleme" and (has_valid or self.analysis_chain is None or not chg.document.full_text):
                 # zaten analiz edilmiş ya da AI ile tekrar denemenin anlamı yok → yalnızca önemi güncelle
-                apply_classification(chg, chg.latest_valid_analysis.parsed if has_valid else None, today, self.taxonomy)
+                apply_classification(chg, chg.latest_valid_analysis.parsed if has_valid else None, today, self.taxonomy, self.domain)
                 session.commit()
                 continue
             if chg.status == "analiz_basarisiz" and chg.analysis_attempts >= MAX_ANALYSIS_ATTEMPTS_TOTAL:
-                apply_classification(chg, None, today, self.taxonomy)
+                apply_classification(chg, None, today, self.taxonomy, self.domain)
                 session.commit()
                 continue
             try:
@@ -441,7 +443,7 @@ class Pipeline:
                 chg.needs_review = True
                 chg.review_reasons = list(chg.review_reasons or []) + [f"AI analizi sırasında beklenmeyen hata: {exc}"]
             latest = chg.latest_valid_analysis
-            apply_classification(chg, latest.parsed if latest else None, today, self.taxonomy)
+            apply_classification(chg, latest.parsed if latest else None, today, self.taxonomy, self.domain)
             _log(session, run.id, "analiz", f"Analiz: {chg.document.title[:120]} → {chg.status}, önem {chg.importance}")
             session.commit()
         return count
@@ -479,7 +481,7 @@ class Pipeline:
             ai_usage=(f"{get_setting(session, KEY_LLM_CALLS_PREFIX + today.isoformat()) or 0}"
                       f" / {self.settings.llm_daily_max_calls}") if self.analysis_chain else "AI kapalı",
         )
-        report = build_report(session, inp, changes, self.taxonomy, self.settings.timezone)
+        report = build_report(session, inp, changes, self.taxonomy, self.settings.timezone, self.domain)
         report.scan_run_id = run.id
         session.commit()
         result.report_id = report.id

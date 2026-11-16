@@ -188,7 +188,9 @@ class Settings:
         s.llm_timeout_seconds = _env_int("LLM_TIMEOUT_SECONDS", s.llm_timeout_seconds)
         s.llm_triage_uncertain = _env_bool("LLM_TRIAGE_UNCERTAIN", s.llm_triage_uncertain)
 
-        s.http_user_agent = _env("HTTP_USER_AGENT", s.http_user_agent)
+        # GitHub "Variables" kutusuna yapıştırırken araya satır sonu girebilir; HTTP başlığında \r\n geçersizdir
+        # ve her isteği düşürür ("Illegal header value"). Tüm boşlukları tek boşluğa indir.
+        s.http_user_agent = " ".join((_env("HTTP_USER_AGENT", s.http_user_agent) or "").split()) or s.http_user_agent
         s.http_timeout_seconds = _env_int("HTTP_TIMEOUT_SECONDS", s.http_timeout_seconds)
         s.http_min_interval_seconds = float(_env("HTTP_MIN_INTERVAL_SECONDS", str(s.http_min_interval_seconds)))
         s.previous_text_lookup = _env_bool("PREVIOUS_TEXT_LOOKUP", s.previous_text_lookup)

@@ -17,8 +17,8 @@ from ..text_utils import TR_MONTH_NAMES, normalize_title
 from .llm import LLMChain, LLMError, LLMQuotaError, Message
 from .prompts import (
     PROMPT_VERSION,
-    SYSTEM_PROMPT,
-    TRIAGE_SYSTEM,
+    system_prompt,
+    triage_system,
     build_analysis_prompt,
     build_previous_section,
     build_retry_prompt,
@@ -27,6 +27,7 @@ from .prompts import (
     truncate_for_llm,
 )
 from .schema import AnalysisResult, TriageResult, map_to_known
+from ..domain import Domain
 
 log = logging.getLogger(__name__)
 
@@ -93,13 +94,16 @@ class RegulatoryAnalyzer:
         self.triage_chain = triage_chain if triage_chain else None
         self.settings = settings
         self.profile = profile
+        self.domain = Domain.from_profile(profile)
+        self.system_prompt = system_prompt(self.domain)
+        self.triage_system = triage_system(self.domain)
 
     # ---- ön eleme -------------------------------------------------------
     def triage(self, title: str, text: str) -> tuple[str, str]:
         if self.triage_chain is None:
             raise LLMError("Ön eleme için AI yapılandırılmamış")
         prompt = build_triage_prompt(profile=self.profile, title=title, text=text or "")
-        raw, _ = self.triage_chain.complete_any(TRIAGE_SYSTEM, lambda c: [Message("user", prompt)], max_tokens=300)
+        raw, _ = self.triage_chain.complete_any(self.triage_system, lambda c: [Message("user", prompt)], max_tokens=300)
         result = TriageResult.model_validate(extract_json(raw))
         return result.ilgili_mi, result.gerekce
 
@@ -155,7 +159,7 @@ class RegulatoryAnalyzer:
                                     attempt=change.analysis_attempts, input_chars=len(text), truncated=truncated)
                 change.analyses.append(record)
                 try:
-                    raw = self.chain.call(client, SYSTEM_PROMPT, messages)
+                    raw = self.chain.call(client, self.system_prompt, messages)
                 except LLMQuotaError as exc:
                     record.validation_errors = [f"Kota: {exc}"]
                     if "Günlük AI çağrı tavanı" in str(exc):
