@@ -53,6 +53,46 @@ def test_guncelle_anahtarsiz_tarar_ve_ai_cagirmaz(mcp_env, smtp_server):
     assert forced.get("atlandi") is None and forced["yeni_degisiklik"] == 0
 
 
+def _clock(monkeypatch, minutes: float) -> None:
+    """mcp_server'ın gördüğü saati gerçek saatin `minutes` dakika ilerisine alır (ms.utcnow)."""
+    from datetime import timedelta
+
+    from enerji_takip.models import utcnow as real_utcnow
+
+    monkeypatch.setattr(ms, "utcnow", lambda: real_utcnow() + timedelta(minutes=minutes))
+
+
+def _scan_count() -> int:
+    with session_scope() as s:
+        return len(s.scalars(select(ScanRun)).all())
+
+
+def test_guncelle_30_dakika_siniri_kenarlari(mcp_env, monkeypatch):
+    """Issue #9: 30 dk içinde ikinci çağrı taramaz; sınır dolunca yeniden tarar."""
+    assert ms.guncelle().get("atlandi") is None
+    assert _scan_count() == 1
+    _clock(monkeypatch, ms.MIN_RESCAN_MINUTES - 1)
+    skipped = ms.guncelle()
+    assert skipped["atlandi"] is True and "30 dakikadan yeni" in skipped["neden"]
+    assert _scan_count() == 1  # ağa çıkılmadı, yeni ScanRun yok
+    _clock(monkeypatch, ms.MIN_RESCAN_MINUTES + 1)
+    assert ms.guncelle().get("atlandi") is None
+    assert _scan_count() == 2
+
+
+def test_guncelle_gecmis_gun_siniri_atlar(mcp_env):
+    ms.guncelle()
+    out = ms.guncelle(gecmis_gun=2)
+    assert out.get("atlandi") is None and _scan_count() == 2
+
+
+def test_guncelle_basarisiz_tarama_siniri_baslatmaz(mcp_env):
+    ms.guncelle()
+    with session_scope() as s:
+        s.scalars(select(ScanRun)).one().status = "basarisiz"
+    assert ms.guncelle().get("atlandi") is None and _scan_count() == 2
+
+
 def test_listeleme_filtreleri_ve_rutin_ayrimi(mcp_env):
     ms.guncelle()
     all_items = ms.son_degisiklikler(gun=7)
