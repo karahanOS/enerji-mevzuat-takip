@@ -7,6 +7,14 @@ yanıtları, gerçek istemcinin arayüzünü taklit eden sahte bir istemciden ge
 """
 from __future__ import annotations
 
+import os
+import tempfile
+
+# Testler kullanıcının yapılandırmasından yalıtılır: şablondan oluşturulmuş bir depoda kökte config/ varsa
+# (ör. başka bir alan için kişiselleştirilmiş sources/taxonomy/profile) testler yine paketle gelen varsayılanları
+# kullanmalı. Ayarlar import anında değil Settings() oluşturulurken okunduğu için burada ayarlamak yeterli.
+os.environ["ENERJI_TAKIP_HOME"] = tempfile.mkdtemp(prefix="enerji-takip-test-")
+
 import io
 import json
 import re
