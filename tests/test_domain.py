@@ -215,3 +215,12 @@ def test_liste_yalnizca_haric_tutulan_kayitlardan_olusuyorsa_eksik_tarama_sayilm
         router.get(url).mock(return_value=httpx.Response(200, html="<p>Bakım çalışması</p>"))
         out2 = adapter.scan(Fetcher(settings), cursor=None, today=TODAY, state={})
     assert not out2.complete and "kalıba uyan bağlantı bulunamadı" in out2.errors[0]
+
+
+def test_user_agent_satir_sonu_temizlenir(monkeypatch):
+    """GitHub değişkenine iki satır yapıştırılırsa başlık geçersiz olur; tek satıra indirilir."""
+    from enerji_takip.config import Settings
+    monkeypatch.setenv("HTTP_USER_AGENT", "karinca-mevzuat-takip/0.1\r\n(iletisim: ornek@ornek.com)\n")
+    s = Settings.from_env()
+    assert s.http_user_agent == "karinca-mevzuat-takip/0.1 (iletisim: ornek@ornek.com)"
+    httpx.Request("GET", "https://example.com", headers={"User-Agent": s.http_user_agent})
