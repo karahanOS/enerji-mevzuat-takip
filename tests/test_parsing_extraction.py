@@ -200,6 +200,15 @@ def test_farkli_yururluk_tarihlerinde_sure_baslangici_tahmin_edilmez():
     ("Elektrik Piyasası Kapasite Mekanizması Yönetmeliğinin Yürürlükten Kaldırılmasına Dair Yönetmelik",
      "YURURLUKTEN_KALDIRMA", "Elektrik Piyasası Kapasite Mekanizması Yönetmeliği"),
     ("Elektrik Depolama Tesislerine İlişkin Yönetmelik", "YENI_YONETMELIK", None),
+    # Gerçek RG fihristi başlıkları satır sonuyla bölebilir (17.11.2026'da 29 değişiklik başlığının 25'i böyleydi)
+    ("Çevresel Etki \nDeğerlendirmesi Yönetmeliğinde Değişiklik Yapılmasına Dair Yönetmelik", "DEGISIKLIK",
+     "Çevresel Etki Değerlendirmesi Yönetmeliği"),
+    ("İller \nBankası Anonim Şirketi İnsan Kaynakları Yönetmeliğinde Değişiklik Yapılmasına \nDair Yönetmelik",
+     "DEGISIKLIK", "İller Bankası Anonim Şirketi İnsan Kaynakları Yönetmeliği"),
+    ("Tehlikeli Maddelerin Karayoluyla Taşınması Hakkında Yönetmelikte Değişiklik \nYapılmasına Dair Yönetmelik",
+     "DEGISIKLIK", "Tehlikeli Maddelerin Karayoluyla Taşınması Hakkında Yönetmelik"),
+    ("Gaziantep Üniversitesi Strateji Uygulama ve Araştırma Merkezi Yönetmeliğinin \nYürürlükten Kaldırılmasına Dair Yönetmelik",
+     "YURURLUKTEN_KALDIRMA", "Gaziantep Üniversitesi Strateji Uygulama ve Araştırma Merkezi Yönetmeliği"),
 ])
 def test_degisiklik_turu_ve_hedef(title, ctype, target):
     assert detect_change_type(title, "YONETMELIK") == ctype
@@ -344,3 +353,15 @@ def test_tirnakli_yeni_madde_metni_degisiklik_hukmune_eklenir():
     assert set(arts) == {"Madde 14", "Geçici Madde 40"}
     assert "30 gün içinde sonuçlandırılır" in arts["Madde 14"]["yeni"]
     assert "yürürlüğe girer" not in arts["Madde 14"]["yeni"] and "yürürlüğe girer" not in arts["Geçici Madde 40"]["yeni"]
+
+
+def test_fihrist_basliklari_tek_satir():
+    """Word kaynaklı fihristte <a> içindeki metin satır sonu içerir; kaydedilen başlık tek satır olmalı."""
+    from enerji_takip.sources.resmi_gazete import parse_fihrist
+    html = ("<html><body><p>12 Kasım 2026</p><p>Sayı : 33429</p>"
+            "<p><b>YÜRÜTME VE İDARE BÖLÜMÜ</b></p><p><b>YÖNETMELİKLER</b></p>"
+            '<p>–– <a href="20261112-1.htm">Çevresel Etki\r\nDeğerlendirmesi Yönetmeliğinde Değişiklik Yapılmasına\n'
+            "Dair Yönetmelik</a></p></body></html>")
+    docs, _ = parse_fihrist(html, "https://www.resmigazete.gov.tr/eskiler/2026/11/20261112.htm")
+    assert docs and docs[0].title == ("Çevresel Etki Değerlendirmesi Yönetmeliğinde Değişiklik Yapılmasına "
+                                      "Dair Yönetmelik")

@@ -118,7 +118,8 @@ def doc_type_from_title(title: str) -> str:
 
 
 def _clean_title(text: str) -> str:
-    text = normalize_space(text)
+    # Word kaynaklı fihristte başlıklar satır sonuyla bölünür ("Çevresel Etki \nDeğerlendirmesi …"); tek satıra indir.
+    text = " ".join(normalize_space(text).split())
     return re.sub(r"^[\s–—\-•·»]+", "", text).strip()
 
 
