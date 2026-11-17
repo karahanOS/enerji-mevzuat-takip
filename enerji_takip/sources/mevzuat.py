@@ -114,6 +114,8 @@ def _clean_marker(raw: str) -> str:
     mk = re.sub(r"\(\s+", "(", mk)
     mk = re.sub(r"\s+\)", ")", mk)
     mk = re.sub(r"\s*([:\-])\s*", r"\1", mk)
+    # Site metni yeniden üretince rakamların arasına boşluk düşebiliyor: "RG-2 8/5/2016" = "RG-28/5/2016"
+    mk = re.sub(r"(?<=[\d/.])\s+(?=[\d/.])", "", mk)
     return mk
 
 
@@ -146,6 +148,27 @@ def diff_articles(old: list[tuple[str, str]], new: list[tuple[str, str]]) -> lis
         if label not in new_map:
             result.append((label, "çıkarıldı", text, None))
     return result
+
+
+def significant_changes(changes, new_markers: list[str]):
+    """Yalnızca gerçek değişiklikleri bırakır.
+
+    mevzuat.gov.tr her değişikliği metne işaretle ekler: "(Değişik:RG-…)", "(Ek:RG-…)", "(Mülga:RG-…)".
+    Site metni yeniden ürettiğinde (dipnot numaraları, satır düzeni) pek çok madde "değişmiş" görünür ama yeni
+    işaret oluşmaz (17.11.2026, Dengeleme ve Uzlaştırma Yönetmeliği: 194 madde). Bu yüzden bir madde ancak
+    içinde YENİ bir işaret varsa değişmiş sayılır; hiç yeni işaret yoksa hiçbir değişiklik raporlanmaz."""
+    if not new_markers:
+        return []
+    fresh = set(new_markers)
+    kept = []
+    for label, op, old, new in changes:
+        if label == "_giris":
+            continue
+        if label == "_tablo" or op == "çıkarıldı":
+            kept.append((label, op, old, new))
+        elif fresh & set(extract_markers(new or "")):
+            kept.append((label, op, old, new))
+    return kept if any(not l.startswith("_") for l, _, _, _ in kept) else []
 
 
 def _display(label: str) -> str:
@@ -241,11 +264,21 @@ class MevzuatKonsolideAdapter(SourceAdapter):
                 state[key] = entry
                 outcome.warnings.append(f"{it['name']}: önceki metin okunamadı; yeni taban kaydedildi")
                 continue
-            changes = diff_articles(old_articles, articles)
-            new_markers = [m for m in markers if m not in set(prev.get("m") or [])]
+            raw_changes = diff_articles(old_articles, articles)
+            # Saklı işaretler eski temizleme kuralıyla yazılmış olabilir: aynı kuralla karşılaştır
+            known = {_clean_marker(m) for m in prev.get("m") or []}
+            new_markers = [m for m in markers if _clean_marker(m) not in known]
+            changes = significant_changes(raw_changes, new_markers)
             state[key] = entry
-            if not any(l not in ("_giris", "_tablo") for l, _, _, _ in changes):
-                continue  # yalnızca başlık/tablo değişti: madde metni aynı, raporlanmaz (taban güncellendi)
+            if not changes:
+                n_raw = sum(1 for l, _, _, _ in raw_changes if not l.startswith("_"))
+                if n_raw:
+                    # Site metni yeniden üretti (dipnot numarası, satır düzeni…): gerçek değişiklik yok
+                    msg = (f"{it['name']}: {n_raw} maddenin metni değişti ama yeni değişiklik işareti yok; "
+                           "biçim değişikliği sayıldı, taban güncellendi")
+                    log.warning(msg)
+                    outcome.warnings.append(msg)
+                continue
             updated += 1
             kind = TUR_LABELS.get(it["tur"], "Mevzuat")
             labels = [_display(l) for l, _, _, _ in changes]
