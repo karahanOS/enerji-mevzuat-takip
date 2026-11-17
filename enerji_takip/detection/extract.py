@@ -115,6 +115,7 @@ def konsolide_articles(text: str) -> list[dict]:
 
 
 def detect_change_type(title: str, doc_type: str) -> str:
+    title = " ".join((title or "").split())
     if doc_type == "KONSOLIDE":
         return "KONSOLIDE_GUNCELLEME"
     t = tr_lower(title)
@@ -142,8 +143,10 @@ def detect_change_type(title: str, doc_type: str) -> str:
 def extract_amended_regulation(title: str, text: str = "") -> tuple[str | None, str | None]:
     """(değiştirilen/kaldırılan mevzuatın adı, ilk yayımlandığı RG atfı)."""
     name = None
+    # Başlıkta satır sonu olabilir (eski kayıtlar, kurum siteleri); '.*?' satır sonunu geçemediği için tek satıra indir.
+    flat = " ".join((title or "").split())
     for rx in (_AMEND_TITLE_RE, _REPEAL_TITLE_RE):
-        m = rx.search(normalize_space(title))
+        m = rx.search(flat)
         if m and m.group("target"):
             name = _fix_stem(m.group("target"))
             break
