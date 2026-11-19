@@ -173,3 +173,43 @@ def test_karsilastirma_yoksa_guncel_tam_metin_alinir():
         r.get(URL).mock(return_value=_html(V2))
         dt = adapter.fetch_text(Fetcher(), fd)
     assert "EK MADDE 1" in dt.text and dt.note
+
+
+def test_dipnot_numaralari_degisirse_bicim_degisikligi_sayilir():
+    """17.11.2026: site metni yeniden üretti; işaretlerden sonraki dipnot numaraları değişti, yeni işaret yok."""
+    state: dict = {}
+    _scan(state, V1)
+    rerender = V1.replace("(<span>Değişik:RG</span>-27/12/2019-30991) </b>", "(<span>Değişik:RG</span>-27/12/2019-30991) [1]</b>") \
+                 .replace("<u>Başkanlık</u> tarafından denetim", "[2] <u>Başkanlık</u> tarafından denetim") \
+                 .replace("<p><b>Kapsam</b></p> <p><b>MADDE 2", "<p><b>Kapsam,</b></p> <p><b>MADDE 2")
+    _, outcome = _scan(state, rerender)
+    assert outcome.documents == [] and outcome.complete
+    assert any("yeni değişiklik işareti yok" in w for w in outcome.warnings)
+    # Taban yeni biçime geçti: sonraki gerçek değişiklik temiz raporlanır
+    v2_rerender = V2.replace("(<span>Değişik:RG</span>-27/12/2019-30991) </b>", "(<span>Değişik:RG</span>-27/12/2019-30991) [1]</b>") \
+                    .replace("<u>Başkanlık</u> tarafından denetim", "[2] <u>Başkanlık</u> tarafından denetim") \
+                    .replace("<p><b>Kapsam</b></p> <p><b>MADDE 2", "<p><b>Kapsam,</b></p> <p><b>MADDE 2")
+    _, real = _scan(state, v2_rerender)
+    labels = [x["madde"] for x in __import__("enerji_takip.detection.extract", fromlist=["x"]).konsolide_articles(real.documents[0].inline_text)]
+    assert labels == ["MADDE 14", "EK MADDE 1", "Yayım ve değişiklik tablosu"]
+
+
+def test_bicim_degisikligi_ve_gercek_degisiklik_ayni_gun():
+    """Yeniden üretilmiş metinde gerçek bir değişiklik de varsa yalnızca yeni işaretli maddeler raporlanır."""
+    state: dict = {}
+    _scan(state, V1)
+    noisy_v2 = V2.replace("(<span>Değişik:RG</span>-27/12/2019-30991) </b>", "(<span>Değişik:RG</span>-27/12/2019-30991) [1]</b>") \
+                 .replace("<p><b>Kapsam</b></p> <p><b>MADDE 2", "<p><b>Kapsam,</b></p> <p><b>MADDE 2")
+    _, outcome = _scan(state, noisy_v2)
+    assert len(outcome.documents) == 1
+    title = outcome.documents[0].title
+    assert "MADDE 14" in title and "EK MADDE 1" in title
+    assert "MADDE 2" not in title.replace("MADDE 20", "") and "MADDE 3" not in title
+
+
+def test_isaret_icinde_bosluk_yeni_isaret_sayilmaz():
+    from enerji_takip.sources.mevzuat import _clean_marker, extract_markers
+
+    assert extract_markers("a (Ek:RG-2 8/5/2016-29725) b") == extract_markers("a (Ek:RG-28/5/2016-29725) b")
+    assert _clean_marker("(Ek:RG-28/5/2016-29725)") == _clean_marker(_clean_marker("(Ek:RG-2 8/5/2016-29725)"))
+    assert extract_markers("(Değişik ibare:RG-27/12/2019-30991)") == ["(Değişik ibare:RG-27/12/2019-30991)"]
