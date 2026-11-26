@@ -11,7 +11,7 @@ maddeleri ve yürürlük tarihlerini çıkarır, piyasa etkisine göre önem sev
 
 | | **MCP sunucusu** | **Günlük e-posta** |
 |---|---|---|
-| Ne alırsınız | Claude, Cursor gibi bir yapay zekâ asistanına "bu hafta hangi enerji mevzuatı çıktı?" diye sorarsınız | Her sabah 08:00'de önem sırasına dizilmiş Türkçe rapor e-postası |
+| Ne alırsınız | Claude, Cursor gibi bir yapay zekâ asistanına "bu hafta hangi enerji mevzuatı çıktı?" diye sorarsınız | Her gün önem sırasına dizilmiş Türkçe rapor e-postası |
 | API anahtarı | **Gerekmez.** Özeti ve yorumu kendi asistanınız yapar | Ücretsiz Gemini/Groq anahtarı (isteğe bağlı) + Gmail uygulama şifresi |
 | Kurulum | Tek satır yapılandırma | GitHub'da "Use this template" + 3 secret |
 | Nerede çalışır | Bilgisayarınızda, siz sorduğunuzda | GitHub Actions'ta, bilgisayarınız kapalıyken de |
@@ -86,7 +86,7 @@ claude mcp add enerji-mevzuat -- uvx --from "enerji-mevzuat-takip[mcp]" enerji-m
 Aynı komutu stdio sunucusu olarak ekleyin: komut `uvx`, argümanlar
 `--from enerji-mevzuat-takip[mcp] enerji-mevzuat-mcp`.
 
-**Paket henüz PyPI'de değilse** doğrudan GitHub'dan çalıştırın:
+En son kodu PyPI sürümünü beklemeden doğrudan GitHub'dan çalıştırmak için:
 
 ```bash
 uvx --from "git+https://github.com/karahanOS/enerji-mevzuat-takip" --with "mcp>=2,<3" enerji-mevzuat-mcp
@@ -121,7 +121,7 @@ talimatlarına ekleyebilirsiniz.
 
 ## 2. Günlük e-posta (GitHub şablonu)
 
-Bilgisayarınız kapalıyken de her sabah rapor gelir.
+Bilgisayarınız kapalıyken de her gün rapor gelir.
 
 1. Bu depoda **Use this template → Create a new repository** deyin ve deponuzu **Private** seçin. Özel depo
    önerilir: GitHub, 60 gün etkinlik olmayan herkese açık depolarda zamanlanmış işleri durdurur; özel depoda ise
@@ -144,8 +144,10 @@ Bilgisayarınız kapalıyken de her sabah rapor gelir.
    "Variables" sekmesine `HTTP_USER_AGENT` ekleyin, ör. `enerji-mevzuat-takip/0.1 (iletisim: adresiniz@ornek.com)`.
 5. **Actions → "Enerji mevzuatı – günlük tarama" → Run workflow.** İlk denemede "E-posta gönderilsin mi?"
    kutusunu kapatabilirsiniz. Günlükte her kaynağın sonucunu görürsünüz.
-6. Bundan sonra iş her gün **08:00'de** (05:00 UTC) çalışır. Veri tabanı `veri` dalında tek commit olarak
-   saklanır; depo büyümez.
+6. Bundan sonra iş her gün iş akışındaki `cron` satırına göre çalışır (varsayılan 05:00 UTC = 08:00 TSİ). GitHub
+   zamanlanmış tetiklemeyi garanti etmez: iş saatlerce gecikebilir, bazı günler hiç oluşmayabilir. Tam saat
+   (dakika 0) yerine örneğin `23 5 * * *` yazmak atlanma riskini azaltır. Veri tabanı `veri` dalında tek commit
+   olarak saklanır; depo büyümez.
 
 Secret'lar tanımlı değilse iş ağa çıkmadan "atlandı" notuyla biter. Bu yüzden şablonun kendisinde veya
 kurulumu bitmemiş bir kopyada hata e-postası gelmez.
@@ -255,7 +257,8 @@ Model adları sağlayıcıların 23.10.2026 tarihli listelerinden alındı. Sağ
 | **SQLite + Python kütüphaneleri** | Veri, ayrıştırma | Kamu malı / MIT / BSD / Apache / PSF | Bağımlılıkların yalnızca açık kaynak olduğunu bir test denetler. |
 
 Kodda ücretli bir API çağrısı yoktur (bunu da bir test denetler). Sağlayıcı kotası dolarsa sıradaki ücretsiz
-sağlayıcıya geçilir; hepsi doluysa rapor AI olmadan gider ve analiz ertesi gün yeniden denenir.
+sağlayıcıya geçilir; hepsi doluysa rapor AI olmadan gider. Analiz aynı çalıştırmada bir kez daha, sonra
+`LLM_RECOVERY_DAYS` (3) gün boyunca yeniden denenir; tamamlanınca sonraki raporda "güncellenen analizler" bölümünde gelir.
 
 ---
 
@@ -327,8 +330,8 @@ EPİAŞ, ETKB, TEİAŞ). It finds new energy-related legislation, extracts amend
   (recent changes), `ara` (search), `degisiklik_detayi` (details), `mevzuat_metni` (full text), `kaynak_durumu`
   (source status), `yururluk_tarihlerini_cikar` (effective-date extraction).
 * **Daily email:** click "Use this template", make the repo private, add `SMTP_USERNAME`, `SMTP_PASSWORD`,
-  `EMAIL_TO` (optionally a free `GEMINI_API_KEY`) as secrets. GitHub Actions emails a Turkish report every day
-  at 08:00 Istanbul time.
+  `EMAIL_TO` (optionally free `GEMINI_API_KEY` / `GROQ_API_KEY`) as secrets. GitHub Actions emails a Turkish
+  report every day (scheduled for 08:00 Istanbul time; GitHub may delay scheduled runs by hours).
 * Everything is free; the code calls no paid APIs. Not legal or investment advice.
 
 ## Lisans
