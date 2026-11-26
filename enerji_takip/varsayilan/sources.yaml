@@ -91,8 +91,16 @@ sources:
     config:
       list_urls: [https://enerji.gov.tr/medya-duyurular-liste]
       item_link_pattern: 'enerji\.gov\.tr/duyuru-detay\?id=\d+'
-      exclude_title_pattern: 'İmar Planı|Personel|Sınav'
+      exclude_title_pattern: 'İmar Planı|Parselasyon Planı|Personel|Sınav'
       title_min_length: 8
+      # Bağlantı metni başlığın sonuna yayım tarihini ekler ("… Sonuçları 05.11.2026")
+      title_trailing_date: true
+      # Liste sayfası başlığı vermezse (Kasım 2026'dan beri bazı kayıtlarda bağlantı metni boş) başlık detay
+      # sayfasından okunur: "… Medya / Duyurular" satırından sonra, "Paylaş" satırından önce.
+      detail_title_pattern: '^Duyurular\n(?P<title>[^\n]+)\nPaylaş$'
+      # Menü ("Enerji Verimliliği, İklim Değişikliği, Boru Hatları…") metinden atılır
+      text_start_after: '^Duyurular$'
+      text_end_before: '^Belge & Dosyalar$|T\.C\. Enerji ve Tabii Kaynaklar Bakanlığı ©'
       doc_type: DUYURU
       institution: Enerji ve Tabii Kaynaklar Bakanlığı
 

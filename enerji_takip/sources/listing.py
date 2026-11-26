@@ -23,6 +23,9 @@ from ..text_utils import html_to_text, normalize_space, parse_tr_date
 from .base import DocumentText, FetchedDocument, ParseError, ScanOutcome, SourceAdapter
 
 
+_TRAILING_DATE_RE = re.compile(r"\s(\d{1,2}[./]\d{1,2}[./]\d{4})\s*$")
+
+
 class HtmlListingAdapter(SourceAdapter):
     method = "html_listing"
 
@@ -39,20 +42,39 @@ class HtmlListingAdapter(SourceAdapter):
                 continue
             self.last_pattern_matches += 1
             title = normalize_space(a.get_text(" ", strip=True)) or normalize_space(a.get("title", ""))
+            container = self._item_container(a, pattern, page_url, url)
+            needs_detail = False
             if len(title) < min_len:
-                # Bazı listelerde bağlantı metni "Devamı" gibi kısa olur; başlık üst blokta
-                parent = a.find_parent(["li", "tr", "article", "div"])
-                if parent:
-                    title = normalize_space(parent.get_text(" ", strip=True))[:300]
+                # Bazı listelerde bağlantı metni "Devamı" gibi kısa olur; başlık, yalnızca bu kaydı içeren üst blokta.
+                # Üst blok başka kayıtları da içeriyorsa metni alınmaz (birden çok duyurunun başlığı birleşirdi,
+                # 25.11.2026 ETKB); başlık detay sayfasından okunur.
+                if container is not None:
+                    title = normalize_space(container.get_text(" ", strip=True))[:300]
+                elif self.config.get("detail_title_pattern"):
+                    title = f"{self.config.get('institution') or 'Kurum'} duyurusu ({url})"
+                    needs_detail = True
+                else:  # detay sayfasından başlık okunamıyorsa eski davranış: en yakın üst bloğun metni
+                    parent = a.find_parent(["li", "tr", "article", "div"])
+                    if parent is not None:
+                        title = normalize_space(parent.get_text(" ", strip=True))[:300]
             if len(title) < min_len or (exclude and exclude.search(title)):
                 continue
             pub = None
-            container = a.find_parent(["li", "tr", "article", "div"])
-            if container is not None:
+            if self.config.get("title_trailing_date"):
+                # "Başlık 05.11.2026": sondaki tarih yayım tarihidir, başlıktan ayrılır
+                m = _TRAILING_DATE_RE.search(title)
+                if m and len(title[:m.start()].strip()) >= min_len:
+                    pub = parse_tr_date(m.group(1))
+                    title = title[:m.start()].strip()
+            if pub is None and container is not None:
                 pub = parse_tr_date(container.get_text(" ", strip=True)[:400])
             if url in found:
-                if len(title) > len(found[url].title):
-                    found[url].title = title
+                prev = found[url]
+                if prev.needs_detail_title and not needs_detail:
+                    prev.title, prev.needs_detail_title = title, False
+                    prev.published_date = prev.published_date or pub
+                elif not needs_detail and len(title) > len(prev.title):
+                    prev.title = title
                 continue
             found[url] = FetchedDocument(
                 source_key=self.source_key,
@@ -63,8 +85,19 @@ class HtmlListingAdapter(SourceAdapter):
                 section=self.config.get("section"),
                 institution=self.config.get("institution"),
                 published_date=pub,
+                needs_detail_title=needs_detail,
             )
         return list(found.values())
+
+    @staticmethod
+    def _item_container(a, pattern: re.Pattern, page_url: str, url: str):
+        """Bağlantının kaydına ait en yakın üst blok; yalnızca bu kaydın bağlantısını içeriyorsa döner."""
+        container = a.find_parent(["li", "tr", "article", "div"])
+        if container is None:
+            return None
+        others = {urldefrag(urljoin(page_url, x["href"].strip()))[0] for x in container.find_all("a", href=True)}
+        others = {u for u in others if pattern.search(u)}
+        return container if others <= {url} else None
 
     def scan(self, fetcher: Fetcher, *, cursor: str | None, today: date, state: dict) -> ScanOutcome:
         outcome = ScanOutcome()
@@ -121,6 +154,15 @@ class HtmlListingAdapter(SourceAdapter):
                 text = html_to_text(str(node))
         if not text:
             text = html_to_text(result.text)
+        title_rx = self.config.get("detail_title_pattern")
+        if title_rx and doc.needs_detail_title:
+            m = re.search(title_rx, text, re.M)
+            if m and normalize_space(m.group("title")):
+                doc.title = normalize_space(m.group("title"))[:300]
+                doc.needs_detail_title = False
+                exclude = self.config.get("exclude_title_pattern")
+                if exclude and re.search(exclude, doc.title, re.I):
+                    doc.skip_reason = "Başlık hariç tutulan türden (exclude_title_pattern)"
         text = self._trim(text)
         attachment = self._attachment_url(soup, result.url)
         if attachment:
