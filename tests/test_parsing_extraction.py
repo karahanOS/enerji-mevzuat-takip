@@ -71,7 +71,10 @@ def test_tarama_tarihleri_bosluk_ve_yeniden_tarama(monkeypatch):
     new, rescan, skipped = a._dates_to_scan(None, PUB, s)
     assert new == [PUB] and rescan == []
     new, _, skipped = a._dates_to_scan("2026-09-01", PUB, s)
-    assert len(new) == 14 and skipped[0] == date(2026, 9, 2)
+    assert len(new) == 15 and skipped[0] == date(2026, 9, 2) and skipped[-1] == date(2026, 10, 8)
+    # "En fazla 14 gün geriye" tam 14 gün öncesini kapsar (23.10 → 09.10); önceden 09.10 atlanıyordu
+    new, _, skipped = a._dates_to_scan("2026-10-08", PUB, s)
+    assert new[0] == date(2026, 10, 9) and not skipped
 
 
 # ---- İlgililik ----------------------------------------------------------------

@@ -1,4 +1,4 @@
-ENERJİ MEVZUAT TAKİBİ — SİSTEM BİLDİRİMİ
+{{ label }} — SİSTEM BİLDİRİMİ
 
 {{ title }}
 
@@ -12,5 +12,6 @@ Ayrıntılar:
 {% endif %}
 
 Bu bildirim otomatik olarak gönderilmiştir. Kayıtlar: veri tabanındaki monitoring_logs ve scan_runs tabloları,
-ayrıca data/loglar/enerji_takip.log (GitHub Actions: iş akışı günlüğü ve "veri" dalı). Eksik dönem, sorun giderildikten sonraki ilk çalıştırmada otomatik
-olarak yeniden taranır.
+ayrıca data/loglar/enerji_takip.log (GitHub Actions: iş akışı günlüğü ve "veri" dalı). Taranamayan kaynak ve günler,
+sorun giderildikten sonraki ilk çalıştırmada otomatik olarak yeniden denenir; azami geri tarama sınırını
+(RG_MAX_BACKFILL_DAYS) aşan günler hariç.
