@@ -14,7 +14,7 @@
   <table role="presentation" cellspacing="0" cellpadding="0" style="font-size:14px;line-height:1.7;">
     <tr><td style="color:#475467;padding-right:12px;">Rapor tarihi:</td><td><strong>{{ report_date }}</strong></td></tr>
     <tr><td style="color:#475467;padding-right:12px;">Tarama dönemi:</td><td>{{ period_start }} – {{ period_end }}</td></tr>
-    <tr><td style="color:#475467;padding-right:12px;">Tespit edilen yeni düzenleme:</td><td><strong>{{ total }}</strong>{% if routine_count %} <span style="color:#667085;">(+ {{ routine_count }} rutin kurul kararı)</span>{% endif %}</td></tr>
+    <tr><td style="color:#475467;padding-right:12px;">Tespit edilen yeni düzenleme:</td><td><strong>{{ total }}</strong>{% if routine_count %} <span style="color:#667085;">(+ {{ routine_count }} rutin kurul kararı)</span>{% endif %}{% if updates_count %} <span style="color:#667085;">(+ {{ updates_count }} güncellenen analiz)</span>{% endif %}</td></tr>
     <tr><td style="color:#475467;padding-right:12px;">Kritik / Yüksek:</td><td><strong style="color:{{ level_colors['KRITIK'] }};">{{ critical }}</strong> / <strong style="color:{{ level_colors['YUKSEK'] }};">{{ high }}</strong></td></tr>
     <tr><td style="color:#475467;padding-right:12px;">Orta / Düşük:</td><td>{{ medium }} / {{ low }}{% if review_count %} &nbsp;·&nbsp; İnceleme gereken: {{ review_count }}{% endif %}</td></tr>
   </table>
@@ -47,11 +47,18 @@
 {% endif %}
 
 {% for it in items %}
+{% if it.is_update and (loop.first or not loop.previtem.is_update) %}
+<tr><td style="padding:22px 28px 0 28px;">
+  <h3 style="font-size:15px;margin:0 0 4px 0;">Önceki raporlardan güncellenen analizler ({{ updates_count }})</h3>
+  <p style="font-size:12.5px;color:#667085;margin:0;">Bu düzenlemeler daha önce yapay zekâ analizi yapılamadan raporlandı; analiz sonradan tamamlandı.</p>
+</td></tr>
+{% endif %}
 <tr><td style="padding:16px 28px 4px 28px;">
   <div style="border:1px solid #e4e7ec;border-left:5px solid {{ it.importance_color }};border-radius:6px;padding:16px 18px;">
     <div style="margin-bottom:6px;">
       <span style="display:inline-block;background:{{ it.importance_color }};color:#ffffff;font-size:12px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:4px;">{{ it.importance }}</span>
       {% if it.needs_review %}<span style="display:inline-block;background:#fffaeb;color:#b54708;border:1px solid #fedf89;font-size:12px;padding:1px 7px;border-radius:4px;margin-left:6px;">Kontrol et</span>{% endif %}
+      {% if it.is_update %}<span style="display:inline-block;background:#eff8ff;color:#175cd3;border:1px solid #b2ddff;font-size:12px;padding:1px 7px;border-radius:4px;margin-left:6px;">Güncellendi</span>{% endif %}
     </div>
     <h2 style="margin:0 0 10px 0;font-size:17px;line-height:1.4;">{{ it.n }}. {{ it.title }}</h2>
     <table role="presentation" cellspacing="0" cellpadding="0" style="font-size:13.5px;line-height:1.65;width:100%;">

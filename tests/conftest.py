@@ -127,6 +127,7 @@ def settings(tmp_path, smtp_server):
     s.sources_file = src
     s.http_min_interval_seconds = 0
     s.source_retry_delay_seconds = 0
+    s.llm_retry_delay_seconds = 0
     s.previous_text_lookup = False  # ağa çıkmasın; ilgili testler açar
     s.smtp_host, s.smtp_port, s.smtp_security = "127.0.0.1", smtp_server.port, "none"
     s.email_from = "ben@ornek.com"

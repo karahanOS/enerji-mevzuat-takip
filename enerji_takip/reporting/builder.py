@@ -104,6 +104,33 @@ def pending_changes(session: Session, report_type: str) -> list[RegulatoryChange
     return changes
 
 
+def recovered_changes(session: Session) -> list[RegulatoryChange]:
+    """Günlük raporda AI analizi olmadan gönderilmiş, sonradan başarıyla analiz edilmiş değişiklikler.
+
+    Ölçüt: geçerli son analiz, değişikliğin yer aldığı son gönderilmiş günlük rapordan sonra üretilmiş.
+    Bu rapor da gönderilince ölçüt kendiliğinden kapanır; ayrı bir durum alanı gerekmez.
+    """
+    rows = session.execute(
+        select(EmailReportItem.change_id, EmailReport.sent_at).join(EmailReport).where(
+            EmailReport.status == "gonderildi", EmailReport.report_type == "gunluk")
+    ).all()
+    last_sent: dict[str, datetime] = {}
+    for change_id, sent_at in rows:
+        if sent_at and (change_id not in last_sent or sent_at > last_sent[change_id]):
+            last_sent[change_id] = sent_at
+    if not last_sent:
+        return []
+    out = []
+    for chg in session.scalars(select(RegulatoryChange).where(
+            RegulatoryChange.id.in_(list(last_sent)),
+            RegulatoryChange.status.in_(["analiz_edildi", "inceleme"]))):
+        valid = chg.latest_valid_analysis
+        if valid is not None and valid.created_at and valid.created_at > last_sent[chg.id]:
+            out.append(chg)
+    out.sort(key=lambda c: -LEVEL_ORDER.index(c.importance) if c.importance in LEVEL_ORDER else 0)
+    return out
+
+
 def excluded_documents(session: Session, since: datetime | None, limit: int, taxonomy: Taxonomy | None = None) -> dict:
     """Kontrol amaçlı: bu taramada ilgisiz bulunan ve analiz dışı bırakılan belgeler (ad + kaynak).
 
@@ -297,11 +324,17 @@ def _disclaimer(domain: Domain) -> str:
 
 
 def build_report(session: Session, inp: ReportInput, changes: list[RegulatoryChange], taxonomy: Taxonomy,
-                 tz: str, domain: Domain | None = None) -> EmailReport:
+                 tz: str, domain: Domain | None = None,
+                 updates: list[RegulatoryChange] | None = None) -> EmailReport:
     domain = domain or DEFAULT_DOMAIN
+    updates = [u for u in (updates or []) if u not in changes]
     main = [c for c in changes if c.status != "rutin"]
     routine = [c for c in changes if c.status == "rutin"]
     items = [_item_view(i + 1, c, taxonomy, domain) for i, c in enumerate(main)]
+    for j, c in enumerate(updates):
+        view = _item_view(len(main) + j + 1, c, taxonomy, domain)
+        view["is_update"] = True
+        items.append(view)
     counts = {lvl: sum(1 for c in main if c.importance == lvl) for lvl in LEVEL_ORDER}
     if inp.report_type == "kritik":
         subject = f"[{domain.e_posta_etiketi}] {inp.report_date.isoformat()} | KRİTİK {domain.rapor_basligi} Değişikliği"
@@ -319,6 +352,7 @@ def build_report(session: Session, inp: ReportInput, changes: list[RegulatoryCha
         "period_end": to_local(inp.period_end, tz),
         "total": len(main),
         "routine_count": len(routine),
+        "updates_count": len(updates),
         "critical": counts["KRITIK"],
         "high": counts["YUKSEK"],
         "medium": counts["ORTA"],
@@ -354,7 +388,7 @@ def build_report(session: Session, inp: ReportInput, changes: list[RegulatoryCha
     )
     session.add(report)
     session.flush()
-    for c in changes:
+    for c in list(changes) + updates:
         session.add(EmailReportItem(report_id=report.id, change_id=c.id))
     session.flush()
     return report

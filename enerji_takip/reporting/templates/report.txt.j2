@@ -3,7 +3,7 @@
 
 Rapor tarihi: {{ report_date }}
 Tarama dönemi: {{ period_start }} – {{ period_end }}
-Tespit edilen yeni düzenleme: {{ total }}{% if routine_count %} (+ {{ routine_count }} rutin kurul kararı){% endif %}
+Tespit edilen yeni düzenleme: {{ total }}{% if routine_count %} (+ {{ routine_count }} rutin kurul kararı){% endif %}{% if updates_count %} (+ {{ updates_count }} güncellenen analiz){% endif %}
 
 Kritik / Yüksek: {{ critical }} / {{ high }}
 Orta / Düşük: {{ medium }} / {{ low }}{% if review_count %} · Kontrol gereken: {{ review_count }}{% endif %}
@@ -24,9 +24,16 @@ Notlar:
 Taranan belge: {{ docs_scanned }} · İlgisiz bulunan: {{ docs_filtered }} · Analiz dışı: {{ docs_skipped }}
 {% endif %}
 {% for it in items %}
+{% if it.is_update and (loop.first or not loop.previtem.is_update) %}
+
+========================================================================
+ÖNCEKİ RAPORLARDAN GÜNCELLENEN ANALİZLER ({{ updates_count }})
+Bu düzenlemeler daha önce yapay zekâ analizi yapılamadan raporlandı; analiz sonradan tamamlandı.
+========================================================================
+{% endif %}
 
 ------------------------------------------------------------------------
-{{ it.n }}. {{ it.title }}
+{{ it.n }}. {{ it.title }}{% if it.is_update %} [GÜNCELLENDİ]{% endif %}
 ------------------------------------------------------------------------
 Mevzuatın türü: {{ it.doc_type }} — {{ it.change_type }}{% if it.institution %} ({{ it.institution }}){% endif %}
 
