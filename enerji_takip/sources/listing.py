@@ -121,6 +121,7 @@ class HtmlListingAdapter(SourceAdapter):
                 text = html_to_text(str(node))
         if not text:
             text = html_to_text(result.text)
+        text = self._trim(text)
         attachment = self._attachment_url(soup, result.url)
         if attachment:
             att = super().fetch_text(fetcher, FetchedDocument(
@@ -132,6 +133,26 @@ class HtmlListingAdapter(SourceAdapter):
                 text = (text + "\n\n--- EK BELGE METNİ ---\n" + att.text).strip()
         status = "tam" if len(text) >= 400 else ("kisa" if text else "okunamadi")
         return DocumentText(text=text, status=status)
+
+    def _trim(self, text: str) -> str:
+        """Sayfa menüsünü ve alt bilgisini metinden atar (``text_start_after`` / ``text_end_before``).
+
+        EPDK gibi sitelerde menü "Akaryakıt, LPG, Lisanssız Üretim…" gibi konu sözcükleri içerir; kırpılmazsa her
+        duyuru bu sözcüklerle eşleşir. İşaret bulunamazsa metin olduğu gibi bırakılır (sayfa düzeni değişse de
+        hiçbir belge boş kalmaz)."""
+        start = self.config.get("text_start_after")
+        if start:
+            matches = list(re.finditer(start, text, re.M))
+            if matches:
+                trimmed = text[matches[-1].end():]
+                if trimmed.strip():
+                    text = trimmed
+        end = self.config.get("text_end_before")
+        if end:
+            match = re.search(end, text, re.M)
+            if match and text[:match.start()].strip():
+                text = text[:match.start()]
+        return text.strip()
 
     def _attachment_url(self, soup: BeautifulSoup, page_url: str) -> str | None:
         pattern = self.config.get("attachment_link_pattern")

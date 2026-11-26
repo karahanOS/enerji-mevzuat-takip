@@ -102,6 +102,8 @@ categories:
       - "=botaş"
       - "=lng"
       - spot doğal gaz
+      - boru gaz          # "spot boru gazı ithalatı" duyuruları "doğal gaz" demeyebilir
+      - spot kapasite
       - şebeke işleyiş
       - iletim şebeke
       - yer altı depolama
