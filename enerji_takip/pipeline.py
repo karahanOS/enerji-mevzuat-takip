@@ -104,15 +104,24 @@ def _acquire_run(session: Session, run_type: str, trigger: str) -> ScanRun | Non
     return run
 
 
+def _alert_label(settings: Settings) -> str:
+    """Sistem bildiriminin etiketi raporla aynı olsun (Karınca: MEVZUAT TAKİP); profil okunamazsa varsayılan."""
+    try:
+        return Domain.from_profile(load_profile(settings)).e_posta_etiketi
+    except Exception:
+        return Domain().e_posta_etiketi
+
+
 def send_admin_alert(session: Session | None, settings: Settings, title: str, lines: list[str],
                      details: dict | None = None) -> bool:
     """Sistem yöneticisine hata bildirimi. Veri tabanı yoksa da çalışır (session=None)."""
     if not settings.admin_email:
         log.error("YÖNETİCİ BİLDİRİMİ (ADMIN_EMAIL tanımlı değil, yalnızca günlüğe yazıldı): %s | %s", title, lines)
         return False
-    body = render_admin_alert(title, lines, details)
+    label = _alert_label(settings)
+    body = render_admin_alert(title, lines, details, label=label)
     mail = OutgoingEmail(
-        subject=f"[ENERJİ MEVZUAT – SİSTEM] {title}", text=body, html=None, to=settings.admin_email, cc=[]
+        subject=f"[{label} – SİSTEM] {title}", text=body, html=None, to=settings.admin_email, cc=[]
     )
 
     def record(attempt: int, status: str, error: str | None) -> None:

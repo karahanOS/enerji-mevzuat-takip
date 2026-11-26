@@ -265,7 +265,9 @@ class ResmiGazeteAdapter(SourceAdapter):
             start = today - timedelta(days=max(settings.rg_first_run_days, 1) - 1)
             last = start - timedelta(days=1)
         skipped: list[date] = []
-        earliest_allowed = today - timedelta(days=settings.rg_max_backfill_days - 1)
+        # "En fazla N gün geriye": bugünden N gün öncesine kadar (bugün dahil N+1 sayı). Önceden bir gün eksikti;
+        # 17.11.2026 00:42'de --since 2026-11-03 ile kurulan depoda 03.11 sayısı hiç taranmadı.
+        earliest_allowed = today - timedelta(days=settings.rg_max_backfill_days)
         if start < earliest_allowed:
             d = start
             while d < earliest_allowed:
@@ -316,7 +318,8 @@ class ResmiGazeteAdapter(SourceAdapter):
             outcome.errors.append(
                 f"{len(skipped)} günlük boşluk azami geri tarama sınırını (RG_MAX_BACKFILL_DAYS="
                 f"{settings.rg_max_backfill_days}) aşıyor; bu günler taranmadı: "
-                f"{skipped[0].isoformat()} – {skipped[-1].isoformat()}"
+                f"{skipped[0].isoformat()} – {skipped[-1].isoformat()}. Bu günler otomatik olarak taranmaz; "
+                "gerekirse RG_MAX_BACKFILL_DAYS değerini artırıp --since (Actions: baslangic) ile yeniden tarayın."
             )
         missing_counts: dict = dict(state.get("rg_404", {}))
         contiguous_ok: date | None = date.fromisoformat(cursor) if cursor else None

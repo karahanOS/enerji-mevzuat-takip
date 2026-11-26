@@ -255,6 +255,14 @@ def cmd_run(args) -> int:
         _print(f"{len(stuck)} yarım kalmış çalıştırma kaydı kapatıldı.")
     if args.since:
         since = date.fromisoformat(args.since)
+        from .pipeline import local_today
+
+        settings = get_settings()
+        earliest = local_today(settings) - timedelta(days=settings.rg_max_backfill_days)
+        if since < earliest:
+            _print(f"hata: --since {since.isoformat()} geri tarama sınırının dışında; en erken {earliest.isoformat()} "
+                   f"(RG_MAX_BACKFILL_DAYS={settings.rg_max_backfill_days}). Sınırı artırın ya da daha yakın bir tarih verin.")
+            return 2
         init_db()
         with session_scope() as s:
             sync_sources(s, get_settings().sources_file)

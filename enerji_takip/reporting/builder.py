@@ -445,5 +445,5 @@ def build_report(session: Session, inp: ReportInput, changes: list[RegulatoryCha
     return report
 
 
-def render_admin_alert(title: str, lines: list[str], details: dict | None = None) -> str:
-    return _env.get_template("admin_alert.txt.j2").render(title=title, lines=lines, details=details or {})
+def render_admin_alert(title: str, lines: list[str], details: dict | None = None, label: str = "ENERJİ MEVZUAT") -> str:
+    return _env.get_template("admin_alert.txt.j2").render(title=title, lines=lines, details=details or {}, label=label)
