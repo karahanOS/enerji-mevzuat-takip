@@ -18,7 +18,12 @@ name: Enerji mevzuatı – günlük tarama
 
 on:
   schedule:
-    - cron: "0 5 * * *"   # 05:00 UTC = 08:00 Europe/Istanbul (Türkiye yaz saati uygulamaz)
+    # 05:23 UTC = 08:23 Europe/Istanbul (Türkiye yaz saati uygulamaz). Tam saat (dakika 0) yerine 23:
+    # GitHub zamanlanmış işleri saat başlarında geciktiriyor veya atlıyor.
+    # GitHub zamanlanmış tetiklemeyi garanti etmez (Kasım 2026: her gün 7–11 saat gecikme). Zamanında rapor için
+    # dış zamanlayıcı kullanın (README → "Raporun zamanında gelmesi"); bu satır yedektir: o gün rapor zaten
+    # gittiyse gecikmeli çalıştırma hiçbir şey yapmadan biter (--gunde-bir).
+    - cron: "23 5 * * *"
   workflow_dispatch:
     inputs:
       gonder:
@@ -30,6 +35,10 @@ on:
         type: choice
         options: [rapor, kaynak-kontrolu]
         default: rapor
+      zamanlanmis:
+        description: "Dış zamanlayıcı tetiklemesi (cron-job.org vb.): bugünün raporu zaten gönderildiyse çalışma"
+        type: boolean
+        default: false
       baslangic:
         description: "(İsteğe bağlı) Resmî Gazete'yi bu tarihten itibaren tara, YYYY-AA-GG (en fazla 14 gün geriye). İlk kurulumda geçmişi görmek için."
         type: string
@@ -132,6 +141,10 @@ jobs:
               echo "::error::baslangic YYYY-AA-GG biçiminde olmalı (ör. 2026-11-01)"; exit 1
             fi
             ARGS="--since $BASLANGIC"
+          fi
+          # Zamanlanmış tetiklemeler (GitHub cron ya da dış zamanlayıcı) günde tek rapor üretir; elle çalıştırma her zaman çalışır
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.zamanlanmis }}" = "true" ]; then
+            ARGS="--gunde-bir $ARGS"
           fi
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.gonder }}" = "false" ]; then
             python -m enerji_takip run --no-send $ARGS

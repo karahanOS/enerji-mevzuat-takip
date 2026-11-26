@@ -185,6 +185,25 @@ PDF/DOCX metni de okunur.
 erişilebildiğini görmek için ilk kurulumda kullanın.
 ---
 
+### Raporun zamanında gelmesi (dış zamanlayıcı)
+
+GitHub'ın zamanlanmış tetiklemesi (`schedule`) garanti vermez: Kasım 2026'da 05:23 UTC'ye kurulu iş her gün 7–11 saat
+gecikti, rapor 08:23 yerine öğleden sonra geldi. Ücretsiz bir dış zamanlayıcı iş akışını GitHub API'siyle tam saatinde
+tetikleyebilir:
+
+1. **Token:** GitHub → Settings → Developer settings → Fine-grained tokens → *Generate new token*. Repository access:
+   yalnızca bu depo; Permissions → Repository → **Actions: Read and write**. (Süresi dolunca yenileyin.)
+2. **cron-job.org** (ücretsiz hesap) → *Create cronjob*:
+   - URL: `https://api.github.com/repos/<kullanıcı>/<depo>/actions/workflows/enerji-mevzuat-takip.yml/dispatches`
+   - Zamanlama: her gün 08:23, saat dilimi Europe/Istanbul
+   - *Advanced*: istek yöntemi **POST**; başlıklar `Authorization: Bearer <token>`,
+     `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`
+   - Gövde: `{"ref": "main", "inputs": {"zamanlanmis": "true"}}`
+   - Başarılı yanıt **204**'tür.
+3. İş akışındaki `schedule` satırı yedek olarak kalır. Zamanlanmış tetiklemeler (`schedule` ve `zamanlanmis: true`)
+   `--gunde-bir` ile çalışır: o günün raporu zaten gönderildiyse hiçbir şey yapmadan biter, çift rapor oluşmaz.
+   Actions sekmesinden elle başlatılan çalıştırma her zaman çalışır.
+
 ## 3. Kendi bilgisayarınızda (CLI)
 
 ```bash

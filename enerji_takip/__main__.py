@@ -261,6 +261,15 @@ def cmd_run(args) -> int:
             rg = s.scalar(select(RegulatorySource).where(RegulatorySource.key == "resmi_gazete"))
             rg.cursor = (since - timedelta(days=1)).isoformat()
         _print(f"Resmî Gazete {since.isoformat()} tarihinden itibaren taranacak.")
+    if getattr(args, "gunde_bir", False) and args.type == "gunluk" and not args.no_send:
+        from .pipeline import daily_report_sent, local_today
+
+        init_db()
+        today = local_today(get_settings())
+        with session_scope() as s:
+            if daily_report_sent(s, today):
+                _print(f"{today.isoformat()} günlük raporu zaten gönderilmiş; bu zamanlanmış çalıştırma atlandı (--gunde-bir).")
+                return 0
     result = run_pipeline(run_type=args.type, trigger="cli", send=not args.no_send)
     _print(f"Durum: {result.status} | tam tarama: {'evet' if result.complete else 'HAYIR'} | yeni belge: "
            f"{result.new_documents} | yeni değişiklik: {result.new_changes} | AI analizi: {result.analyzed}")
@@ -331,6 +340,8 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--since", help="Resmî Gazete'yi bu tarihten (YYYY-AA-GG) itibaren tara")
     r.add_argument("--kilidi-kaldir", action="store_true",
                    help="Yarıda kesilmiş (hâlâ 'çalışıyor' görünen) önceki çalıştırmayı kapat; başka tarama gerçekten sürmüyorsa kullanın")
+    r.add_argument("--gunde-bir", action="store_true",
+                   help="Bugünün günlük raporu zaten gönderildiyse çalışmadan çık (zamanlanmış tetiklemeler için)")
     r.set_defaults(fn=cmd_run)
     sub.add_parser("test-email").set_defaults(fn=cmd_test_email)
     sub.add_parser("scheduler").set_defaults(fn=cmd_scheduler)

@@ -75,6 +75,13 @@ class RunResult:
     warnings: list[str] = field(default_factory=list)
 
 
+def daily_report_sent(session: Session, day: date) -> bool:
+    """Bu tarih için günlük rapor zaten gönderildi mi? (dış zamanlayıcı + gecikmeli GitHub cron'u çift rapor üretmesin)"""
+    return session.scalar(select(EmailReport.id).where(
+        EmailReport.report_type == "gunluk", EmailReport.status == "gonderildi",
+        EmailReport.report_date == day).limit(1)) is not None
+
+
 def local_today(settings: Settings, now: datetime | None = None) -> date:
     now = now or datetime.now(timezone.utc)
     return now.astimezone(ZoneInfo(settings.timezone)).date()
