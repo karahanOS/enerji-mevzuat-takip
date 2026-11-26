@@ -1,6 +1,8 @@
 """E-posta rapor üreticisi: bildirilmemiş değişiklikleri toplar, Türkçe HTML + düz metin rapor oluşturur."""
 from __future__ import annotations
 
+import re
+
 import quopri
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
@@ -186,6 +188,9 @@ def _short(text: str | None, limit: int = RAW_TEXT_CHARS) -> str:
     return text if len(text) <= limit else text[:limit].rstrip() + " […]"
 
 
+_NO_PREVIOUS_RE = re.compile(r"alınamad|yoktu|yer alm|bulunmamakta|bulunmuyor|mevcut değil", re.I)
+
+
 def _comparison_view(chg: RegulatoryChange, a: dict | None) -> dict:
     """'Eskiden / Şimdi / Yapmanız gereken' bölümü: AI karşılaştırması + ham eski/yeni madde metinleri."""
     arts = chg.amended_articles or []
@@ -195,11 +200,16 @@ def _comparison_view(chg: RegulatoryChange, a: dict | None) -> dict:
         "eski_not": x.get("eski_not") or "",
         "teyit": x.get("teyit") or "",
     } for x in arts if x.get("eski") or x.get("yeni")]
+    found = [x for x in arts if x.get("eski")]
+    # AI karşılaştırması yalnızca önceki metne dayanıyorsa gösterilir. Önceki metin yokken (ör. acele kamulaştırma,
+    # duyuru) AI "Eskiden: önceki düzenlemede bu hüküm yoktu / Şimdi: <özetin tekrarı>" satırları üretiyordu.
+    grounded = bool(found) or chg.change_type == "KONSOLIDE_GUNCELLEME"
     rows = []
     for r in (a or {}).get("karsilastirma") or []:
+        if not grounded and _NO_PREVIOUS_RE.search(r.get("onceki") or "Önceki metin alınamadı"):
+            continue
         rows.append({"madde": r.get("madde"), "onceki": r.get("onceki"), "yeni": r.get("yeni"),
                      "fark": r.get("pratik_fark") or "", "yapilacak": r.get("yapilacak") or ""})
-    found = [x for x in arts if x.get("eski")]
     source = next((x.get("eski_kaynak") for x in found if x.get("eski_kaynak")), None)
     page = next((x.get("konsolide_url") for x in arts if x.get("konsolide_url")), None)
     note = ""

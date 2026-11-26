@@ -13,7 +13,7 @@ import re
 
 from ..domain import DEFAULT_DOMAIN, Domain
 
-PROMPT_VERSION = "enerji-2026-11-12.1"
+PROMPT_VERSION = "enerji-2026-11-26.1"
 
 _SYSTEM_TEMPLATE = """Sen {uzmanlik} konusunda uzman bir mevzuat analistisin. Görevin, yayımlanan bir mevzuat belgesini aşağıda profili \
 verilen kullanıcı açısından analiz etmek ve SADECE geçerli bir JSON nesnesi döndürmektir.
@@ -35,7 +35,8 @@ gerektirdiği (yalnızca <onceki_metin>'e dayan), "yeni" = yeni hükmün gerekti
 "pratik_fark" = somut fark (süre, oran, tutar, yükümlülük, muafiyet, yetkili merci; değişmeyen kısmı tekrar etme), \
 "yapilacak" = kullanıcının yapması gereken iş ve varsa son tarih (gerekmiyorsa "Ek işlem gerekmiyor"). Eski metni \
 verilmemiş maddede "onceki" alanına "Önceki metin alınamadı" yaz; eski hükmü TAHMİN ETME. Yeni eklenen maddede \
-"onceki" = "Önceki düzenlemede bu hüküm yoktu". "onceki_duzenleme" alanını <onceki_metin>'den özetle; \
+"onceki" = "Önceki düzenlemede bu hüküm yoktu". <onceki_metin> hiç verilmemişse ve metin kendi içinde \
+eski/yeni karşılaştırması da içermiyorsa "karsilastirma" BOŞ liste olur; özeti orada tekrar etme. "onceki_duzenleme" alanını <onceki_metin>'den özetle; \
 <onceki_metin> hiç yoksa "Metinde önceki düzenleme yer almıyor; karşılaştırma için mevzuatın önceki hali \
 incelenmeli." yaz. Metin zaten "ESKİ METİN / YENİ METİN" karşılaştırması içeriyorsa (konsolide güncelleme) \
 karsilastirma'yı ondan doldur.
