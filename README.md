@@ -178,7 +178,9 @@ alan:
 `taxonomy.yaml`'a `own_company_markers: [şirket unvanı]` eklenirse unvanın geçtiği karar (ör. tek şirkete özgü bir
 lisans veya ceza kararı) rutin sayılmaz, her zaman ilgili kabul edilir ve "mutlaka kontrol edin" notuyla öne çıkar.
 Kurum duyurusu yalnızca "Duyuru metni için tıklayınız" bağlantısı içeriyorsa `attachment_link_pattern` ile ek
-PDF/DOCX metni de okunur.
+PDF/DOCX metni de okunur. Sayfa menüsü konu sözcükleri içeriyorsa (ör. EPDK: "Akaryakıt, LPG, Lisanssız Üretim")
+`text_start_after` / `text_end_before` (düzenli ifade) ile metin içerik bölümüne kırpılır; işaret bulunamazsa sayfa
+metni olduğu gibi kullanılır.
 
 **Kaynak kontrolü:** Actions → iş akışı → Run workflow → `islem: kaynak-kontrolu` seçilirse yalnızca
 `check-sources --all` çalışır; veri dalı değişmez, e-posta gitmez. GitHub sunucularından hangi kaynaklara

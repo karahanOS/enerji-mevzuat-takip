@@ -32,6 +32,10 @@ sources:
       list_urls: [https://www.epdk.gov.tr/Detay/Icerik/4-0-1/duyurular]
       item_link_pattern: 'epdk\.gov\.tr/Detay/Icerik/4-\d+/'
       exclude_title_pattern: 'Personel Alım|Sınav|Aylık İstatistik|Sektör Rapor'
+      # Menü "Akaryakıt, LPG, Lisanssız Üretim, YEKDEM…" içerir; metin içerik bölümüne kırpılır (2026-11 düzeni).
+      # İşaret bulunamazsa sayfa metni olduğu gibi kullanılır.
+      text_start_after: '^BASIN AÇIKLAMALARI$'
+      text_end_before: 'Birimi\s*:|Görüntülenme Sayısı'
       doc_type: DUYURU
       institution: Enerji Piyasası Düzenleme Kurumu
 
