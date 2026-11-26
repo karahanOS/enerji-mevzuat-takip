@@ -91,7 +91,10 @@ def find_cross_source_duplicate(session: Session, doc: RegulatoryDocument) -> Re
     candidates = session.scalars(
         select(RegulatoryChange)
         .join(RegulatoryDocument)
-        .where(RegulatoryDocument.id != doc.id, RegulatoryChange.first_detected_at >= since)
+        .where(RegulatoryDocument.id != doc.id, RegulatoryChange.first_detected_at >= since,
+               # Aynı kaynaktaki farklı adresler ayrı duyurulardır (25.11.2026: ETKB'nin 6 ayrı duyurusu,
+               # birleşmiş başlık yüzünden birbirinin kopyası sayılmıştı)
+               RegulatoryDocument.source_id != doc.source_id)
     )
     for chg in candidates:
         other = normalize_title(chg.document.title)
@@ -194,9 +197,17 @@ class ChangeDetectionEngine:
             stats.baseline += 1
             return
 
+        pre_text = None
+        if fd.needs_detail_title:
+            # Liste sayfası güvenilir başlık vermedi: önce detay sayfası okunur, başlık oradan alınır
+            pre_text = adapter.fetch_text(self.fetcher, fd)
+            doc.title = fd.title
         if fd.doc_type == "KONSOLIDE":
             # Kullanıcının izleme listesindeki mevzuat: konu süzgecinden geçirilmez.
             rel = RelevanceResult(ALAKALI, 0.0, [], [], "İzleme listesindeki mevzuatın konsolide metni değişti")
+        elif fd.needs_detail_title:
+            # Başlık detay sayfasında da bulunamadı: başlıktan karar verilmez, metin kontrol edilir
+            rel = RelevanceResult(BELIRSIZ, 0.0, [], [], "Başlık alınamadı; metin kontrol edilecek")
         else:
             rel = self.taxonomy.assess_title(
                 fd.title, fd.doc_type, fd.section, skip_reason=fd.skip_reason,
@@ -209,7 +220,10 @@ class ChangeDetectionEngine:
             return
 
         # Tam metni al (hem belirsizleri çözmek hem de analiz için)
-        dtext = DocumentText(text=fd.inline_text, status="tam") if fd.inline_text else adapter.fetch_text(self.fetcher, fd)
+        if pre_text is not None:
+            dtext = pre_text
+        else:
+            dtext = DocumentText(text=fd.inline_text, status="tam") if fd.inline_text else adapter.fetch_text(self.fetcher, fd)
         doc.full_text = dtext.text or None
         doc.text_hash = sha256(dtext.text) if dtext.text else None
         doc.text_status = dtext.status
