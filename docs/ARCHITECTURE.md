@@ -72,7 +72,22 @@ göre çözülür. GitHub Actions'ta uygulama dizini depo köküdür.
 `analysis/llm.py` içindeki `OpenAICompatClient`, Gemini, Groq ve Ollama'nın ortak `/chat/completions` arayüzünü
 kullanır. `LLMChain` istemcileri sırayla dener:
 
-* **429 (kota):** `Retry-After` 20 saniyeden kısaysa bekleyip tekrar dener, değilse sıradaki sağlayıcıya geçer.
+* **429 (hız sınırı/kota):** Sağlayıcının istediği bekleme (`Retry-After` başlığı ya da Gemini gövdesindeki
+  `retryDelay`) `LLM_RATE_WAIT_MAX_SECONDS` (65 sn) altındaysa bekleyip tekrar dener; bilgi yoksa kısa bir
+  beklemeyle bir kez daha dener. Gövde günlük kotayı (`PerDay`) gösteriyorsa beklemeden sıradakine geçer.
+* **Geçici hata (500/502/503/504, bağlantı, zaman aşımı):** `LLM_HTTP_RETRIES` (3) denemeye kadar artan
+  beklemeyle (8 sn, 24 sn …, en fazla 60 sn, ±%20 rastgele) tekrar dener. Zaman aşımında aynı istek en fazla
+  iki kez denenir.
+* **İstek aralığı:** Aynı sağlayıcıya (aynı anahtara) giden istekler arasında `GEMINI_MIN_INTERVAL_SECONDS` (4 sn)
+  / `GROQ_MIN_INTERVAL_SECONDS` (2 sn) beklenir; dakikalık ücretsiz sınıra takılmayı azaltır.
+* **Devre kesici:** Bir model art arda `LLM_BREAKER_THRESHOLD` (2) belgede geçici hatayla düşerse çalıştırmanın
+  kalanında beklenmeden atlanır; kesinti sürerken her belge için dakikalarca beklenmez.
+* **Çalıştırma içi yeniden deneme:** İlk turda analizi düşen değişiklikler `LLM_RETRY_DELAY_SECONDS` (120 sn)
+  beklenip devre kesiciler sıfırlanarak bir kez daha denenir (günlük tavan dolduysa denenmez).
+* **Sonraki günlerde kurtarma:** AI analizi olmadan raporlanmış değişiklikler `LLM_RECOVERY_DAYS` (3) gün
+  boyunca sonraki çalıştırmalarda yeniden denenir. Başarılı olursa bir sonraki günlük raporda "Önceki raporlardan
+  güncellenen analizler" bölümünde bir kez gösterilir (ölçüt: geçerli analiz, değişikliğin yer aldığı son
+  gönderilmiş rapordan yeni). Toplam deneme sınırı değişiklik başına 15'tir.
 * **JSON modu desteklenmiyorsa** (400 + `response_format`): düz metinle yeniden dener; çıktı yine şemayla doğrulanır.
 * **Şema hatası:** aynı sağlayıcıdan, hata listesiyle bir kez düzeltme istenir; olmazsa sıradaki sağlayıcı denenir.
 * **Günlük tavan:** `LLM_DAILY_MAX_CALLS` aşılırsa AI çağrısı yapılmaz. Sayaç veri tabanında tutulur, aynı

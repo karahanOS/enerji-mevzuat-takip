@@ -60,8 +60,8 @@ def test_kota_dolunca_siradaki_ucretsiz_saglayiciya_gecer(settings):
 
 
 def test_tum_saglayicilarda_kota_dolarsa_kayit_kaybolmaz_ve_sonra_denenir(settings, smtp_server):
-    a = FakeClient("gemini", "m", script=[_only_duy([LLMQuotaError("429")])] * 30)
-    b = FakeClient("groq", "m", script=[_only_duy([LLMQuotaError("429")])] * 30)
+    a = FakeClient("gemini", "m", script=[_only_duy([LLMQuotaError("429")] * 5)] * 30)
+    b = FakeClient("groq", "m", script=[_only_duy([LLMQuotaError("429")] * 5)] * 30)
     result = _run(settings, LLMChain([a, b]), send=True)
     assert result.report_status == "gonderildi"
     with session_scope() as s:

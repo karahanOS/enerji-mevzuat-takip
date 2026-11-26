@@ -126,6 +126,14 @@ class Settings:
     llm_max_attempts: int = 2
     llm_timeout_seconds: int = 120
     llm_triage_uncertain: bool = True
+    # Geçici hatalara (503, zaman aşımı, dakikalık hız sınırı) dayanıklılık
+    llm_http_retries: int = 3  # aynı istek için en fazla deneme (artan bekleme ile)
+    llm_backoff_base_seconds: float = 8.0  # 8 sn, 24 sn, … (en fazla 60 sn; ±%20 rastgele)
+    llm_rate_wait_max_seconds: float = 65.0  # 429'da sağlayıcının istediği bekleme bundan kısaysa beklenir
+    llm_min_interval_seconds: dict = field(default_factory=lambda: {"gemini": 4.0, "groq": 2.0, "ollama": 0.0})
+    llm_breaker_threshold: int = 2  # bir model art arda bu kadar belgede düşerse çalıştırmanın kalanında atlanır
+    llm_retry_delay_seconds: int = 120  # geçici hatayla kalan analizler bu kadar beklenip bir kez daha denenir (-1 = yok)
+    llm_recovery_days: int = 3  # AI'sız raporlanan değişiklik bu kadar gün sonraki çalıştırmalarda yeniden denenir
 
     # Tarama
     http_user_agent: str = f"enerji-mevzuat-takip/{__version__} (+{PROJECT_URL})"
@@ -187,6 +195,16 @@ class Settings:
         s.llm_max_attempts = _env_int("LLM_MAX_ATTEMPTS", s.llm_max_attempts)
         s.llm_timeout_seconds = _env_int("LLM_TIMEOUT_SECONDS", s.llm_timeout_seconds)
         s.llm_triage_uncertain = _env_bool("LLM_TRIAGE_UNCERTAIN", s.llm_triage_uncertain)
+        s.llm_http_retries = max(1, _env_int("LLM_HTTP_RETRIES", s.llm_http_retries))
+        s.llm_backoff_base_seconds = float(_env("LLM_BACKOFF_BASE_SECONDS", str(s.llm_backoff_base_seconds)))
+        s.llm_rate_wait_max_seconds = float(_env("LLM_RATE_WAIT_MAX_SECONDS", str(s.llm_rate_wait_max_seconds)))
+        for provider in ("gemini", "groq", "ollama"):
+            value = _env(f"{provider.upper()}_MIN_INTERVAL_SECONDS")
+            if value is not None:
+                s.llm_min_interval_seconds[provider] = float(value)
+        s.llm_breaker_threshold = _env_int("LLM_BREAKER_THRESHOLD", s.llm_breaker_threshold)
+        s.llm_retry_delay_seconds = _env_int("LLM_RETRY_DELAY_SECONDS", s.llm_retry_delay_seconds)
+        s.llm_recovery_days = _env_int("LLM_RECOVERY_DAYS", s.llm_recovery_days)
 
         # GitHub "Variables" kutusuna yapıştırırken araya satır sonu girebilir; HTTP başlığında \r\n geçersizdir
         # ve her isteği düşürür ("Illegal header value"). Tüm boşlukları tek boşluğa indir.

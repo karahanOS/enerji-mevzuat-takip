@@ -138,7 +138,7 @@ Bilgisayarınız kapalıyken de her sabah rapor gelir.
    | `SMTP_USERNAME` | Gmail adresiniz |
    | `SMTP_PASSWORD` | 16 haneli uygulama şifresi |
    | `EMAIL_TO` | Raporun gideceği adres(ler), virgülle |
-   | `GEMINI_API_KEY`, `GROQ_API_KEY` | (isteğe bağlı) AI anahtarları |
+   | `GEMINI_API_KEY`, `GROQ_API_KEY` | (isteğe bağlı) AI anahtarları. İkisini birden tanımlamanız önerilir: Gemini kesintisinde zincir Groq'a geçer. |
    | `EMAIL_CC`, `ADMIN_EMAIL` | (isteğe bağlı) |
 
    "Variables" sekmesine `HTTP_USER_AGENT` ekleyin, ör. `enerji-mevzuat-takip/0.1 (iletisim: adresiniz@ornek.com)`.
@@ -229,6 +229,8 @@ Tüm değişkenler [.env.example](.env.example) dosyasında açıklamalı olarak
 | `LLM_ANALYSIS_CHAIN` | Sıralı yedek zincir. Varsayılan: `gemini:gemini-3.8-flash,gemini:gemini-3.5-flash-lite,groq:openai/gpt-oss-120b`. Anahtarı olmayan sağlayıcı atlanır; `none` AI'yı kapatır. |
 | `LLM_TRIAGE_CHAIN` | Belirsiz belgelerin ucuz ön elemesi. Varsayılan: `gemini:gemini-3.5-flash-lite,groq:openai/gpt-oss-20b`. |
 | `LLM_DAILY_MAX_CALLS` | Günlük AI çağrı tavanı (varsayılan 40). |
+| `LLM_RETRY_DELAY_SECONDS` | Geçici hatayla (503, zaman aşımı) kalan analizler bu kadar beklenip bir kez daha denenir (varsayılan 120; `-1` kapatır). |
+| `LLM_RECOVERY_DAYS` | AI analizi olmadan raporlanan değişiklik kaç gün daha yeniden denensin (varsayılan 3). Başarılı olursa sonraki raporda "güncellenen analizler" bölümünde gelir. |
 | `DAILY_REPORT_TIME` | Yerel zamanlayıcı saati. GitHub Actions'ta saat iş akışındaki `cron` satırından ayarlanır. |
 | `SEND_EMPTY_REPORTS` | Değişiklik olmayan günlerde de "değişiklik yok" e-postası gelsin mi (varsayılan evet). |
 | `ENERJI_TAKIP_HOME` | Uygulama dizini (veri, rapor, `config/`). |

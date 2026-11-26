@@ -31,7 +31,7 @@ from ..domain import Domain
 
 log = logging.getLogger(__name__)
 
-MAX_ANALYSIS_ATTEMPTS_TOTAL = 6  # çalıştırmalar arası toplam
+MAX_ANALYSIS_ATTEMPTS_TOTAL = 15  # çalıştırmalar arası toplam (çalıştırma içi ve sonraki günlerdeki yeniden denemeler dahil)
 # Yeniden analizde temizlenecek (AI kaynaklı) inceleme gerekçeleri
 AI_REASON_PREFIXES = ("AI ", "AI'", "Alıntı", "Yürürlük tarihi çelişkisi", "Analiz eksik",
                       "Mevzuat metni alınamadığı", "Önem seviyesi")
@@ -97,6 +97,7 @@ class RegulatoryAnalyzer:
         self.domain = Domain.from_profile(profile)
         self.system_prompt = system_prompt(self.domain)
         self.triage_system = triage_system(self.domain)
+        self.daily_cap_reached = False  # günlük AI tavanı dolduysa bu çalıştırmada yeniden denemenin anlamı yok
 
     # ---- ön eleme -------------------------------------------------------
     def triage(self, title: str, text: str) -> tuple[str, str]:
@@ -146,6 +147,10 @@ class RegulatoryAnalyzer:
         quota_only = True
         attempts = max(1, self.settings.llm_max_attempts)
         for client in self.chain.clients:
+            if not getattr(client, "available", True):
+                failures.append(f"{client.label}: art arda hata verdiği için bu çalıştırmada atlandı")
+                quota_only = False
+                continue
             # Eski metin, sağlayıcının girdi sınırının en fazla yarısını kullanır; kalan mevzuat metnine ayrılır
             prev = previous if len(previous) <= client.max_input_chars // 2 else \
                 previous[: client.max_input_chars // 2] + " [… kısaltıldı]"
@@ -164,12 +169,14 @@ class RegulatoryAnalyzer:
                     record.validation_errors = [f"Kota: {exc}"]
                     if "Günlük AI çağrı tavanı" in str(exc):
                         failures.append(str(exc))
+                        self.daily_cap_reached = True
                         return self._fail(change, failures, quota=True)
                     failures.append(f"{client.label}: kota doldu")
                     break  # sıradaki sağlayıcıya geç
                 except LLMError as exc:
                     record.validation_errors = [f"LLM hatası: {exc}"]
-                    failures.append(f"{client.label}: {exc}")
+                    message = str(exc)
+                    failures.append(message if message.startswith(client.label) else f"{client.label}: {message}")
                     quota_only = False
                     break
                 finally:

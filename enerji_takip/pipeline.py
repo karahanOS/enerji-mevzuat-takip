@@ -40,7 +40,8 @@ from .models import (
     ScanRun,
     utcnow,
 )
-from .reporting.builder import ReportInput, SourceStatusRow, build_report, pending_changes, render_admin_alert, to_local
+from .reporting.builder import (ReportInput, SourceStatusRow, build_report, pending_changes, recovered_changes,
+                                render_admin_alert, to_local)
 from .reporting.mailer import OutgoingEmail, send_with_retry
 from .runtime import KEY_HEARTBEAT_ALERT, KEY_LLM_CALLS_PREFIX, effective_recipients, setup_logging
 from .sources.base import FetchedDocument, ScanOutcome
@@ -416,13 +417,26 @@ class Pipeline:
     def _analyze_pending(self, session: Session, run: ScanRun, today: date) -> int:
         reported = select(EmailReportItem.change_id).join(EmailReport).where(
             EmailReport.status == "gonderildi", EmailReport.report_type == "gunluk")
-        candidates = session.scalars(
+        candidates = list(session.scalars(
             select(RegulatoryChange).where(RegulatoryChange.id.not_in(reported)).where(
                 RegulatoryChange.status.in_(["yeni", "analiz_basarisiz", "inceleme"])
             )
-        ).all()
+        ).all())
+        # Kurtarma: AI'sız (analiz başarısız) raporlanmış değişiklikler birkaç gün daha yeniden denenir;
+        # başarılı olursa sonraki raporda "güncellenen analizler" bölümünde gösterilir.
+        if self.analysis_chain is not None and self.settings.llm_recovery_days > 0:
+            since = utcnow() - timedelta(days=self.settings.llm_recovery_days)
+            candidates += session.scalars(
+                select(RegulatoryChange).where(
+                    RegulatoryChange.id.in_(reported),
+                    RegulatoryChange.status == "analiz_basarisiz",
+                    RegulatoryChange.analysis_attempts < MAX_ANALYSIS_ATTEMPTS_TOTAL,
+                    RegulatoryChange.first_detected_at >= since,
+                )
+            ).all()
         analyzer = RegulatoryAnalyzer(session, self.analysis_chain, self.settings, self.profile, self.triage_chain)
         count = 0
+        failed: list[RegulatoryChange] = []
         for chg in candidates:
             has_valid = chg.latest_valid_analysis is not None
             if chg.status == "inceleme" and (has_valid or self.analysis_chain is None or not chg.document.full_text):
@@ -434,19 +448,41 @@ class Pipeline:
                 apply_classification(chg, None, today, self.taxonomy, self.domain)
                 session.commit()
                 continue
-            try:
-                result = analyzer.analyze(chg)
-                count += result is not None
-            except Exception as exc:
-                log.exception("Analiz hatası")
-                chg.status = "analiz_basarisiz"
-                chg.needs_review = True
-                chg.review_reasons = list(chg.review_reasons or []) + [f"AI analizi sırasında beklenmeyen hata: {exc}"]
-            latest = chg.latest_valid_analysis
-            apply_classification(chg, latest.parsed if latest else None, today, self.taxonomy, self.domain)
-            _log(session, run.id, "analiz", f"Analiz: {chg.document.title[:120]} → {chg.status}, önem {chg.importance}")
-            session.commit()
+            ok = self._analyze_one(session, run, analyzer, chg, today)
+            count += ok
+            if not ok and chg.status == "analiz_basarisiz":
+                failed.append(chg)
+
+        # Çalıştırma içi gecikmeli yeniden deneme: 503/zaman aşımı gibi geçici kesintiler çoğu zaman
+        # birkaç dakikada geçer. Günlük tavan dolduysa beklemenin anlamı yok.
+        delay = self.settings.llm_retry_delay_seconds
+        if failed and delay >= 0 and not analyzer.daily_cap_reached and self.analysis_chain is not None:
+            if delay > 0:
+                log.info("%s analiz geçici hatayla kaldı; %s sn sonra yeniden denenecek", len(failed), delay)
+                time.sleep(delay)
+            self.analysis_chain.reset_health()
+            for chg in failed:
+                if analyzer.daily_cap_reached or chg.analysis_attempts >= MAX_ANALYSIS_ATTEMPTS_TOTAL:
+                    break
+                count += self._analyze_one(session, run, analyzer, chg, today, retry=True)
         return count
+
+    def _analyze_one(self, session: Session, run: ScanRun, analyzer: RegulatoryAnalyzer, chg: RegulatoryChange,
+                     today: date, retry: bool = False) -> bool:
+        ok = False
+        try:
+            ok = analyzer.analyze(chg) is not None
+        except Exception as exc:
+            log.exception("Analiz hatası")
+            chg.status = "analiz_basarisiz"
+            chg.needs_review = True
+            chg.review_reasons = list(chg.review_reasons or []) + [f"AI analizi sırasında beklenmeyen hata: {exc}"]
+        latest = chg.latest_valid_analysis
+        apply_classification(chg, latest.parsed if latest else None, today, self.taxonomy, self.domain)
+        _log(session, run.id, "analiz", f"Analiz{' [yeniden deneme]' if retry else ''}: "
+                                        f"{chg.document.title[:120]} → {chg.status}, önem {chg.importance}")
+        session.commit()
+        return ok
 
     def _previous_success(self, session: Session, run: ScanRun, run_type: str) -> datetime | None:
         prev = session.scalars(
@@ -458,9 +494,10 @@ class Pipeline:
 
     def _report(self, session, run, result, run_type, send, today, complete, source_rows, warnings, totals) -> str | None:
         changes = pending_changes(session, run_type)
+        updates = recovered_changes(session) if run_type == "gunluk" else []
         if run_type == "kritik" and not changes:
             return None
-        if run_type == "gunluk" and not changes:
+        if run_type == "gunluk" and not changes and not updates:
             if complete and not self.settings.send_empty_reports:
                 return None
             if not complete and not self.settings.notify_recipients_on_failure:
@@ -481,7 +518,8 @@ class Pipeline:
             ai_usage=(f"{get_setting(session, KEY_LLM_CALLS_PREFIX + today.isoformat()) or 0}"
                       f" / {self.settings.llm_daily_max_calls}") if self.analysis_chain else "AI kapalı",
         )
-        report = build_report(session, inp, changes, self.taxonomy, self.settings.timezone, self.domain)
+        report = build_report(session, inp, changes, self.taxonomy, self.settings.timezone, self.domain,
+                              updates=updates)
         report.scan_run_id = run.id
         session.commit()
         result.report_id = report.id
