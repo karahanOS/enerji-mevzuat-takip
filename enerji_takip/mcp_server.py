@@ -46,7 +46,9 @@ MIN_RESCAN_MINUTES = 30
 
 INSTRUCTIONS = """Türkiye enerji ve elektrik piyasası mevzuatını (Resmî Gazete, EPDK, EPİAŞ, ETKB, TEİAŞ) takip eder.
 Önerilen akış:
-1. `guncelle` ile kaynakları tara (30 dakikada bir sınırlıdır; bir tarama 1 dakikaya kadar sürebilir).
+1. `guncelle` ile kaynakları tara (30 dakikada bir sınırlıdır; bir tarama 1 dakikaya kadar sürebilir). İlk kullanımda
+   ya da uzun aradan sonra `gecmis_gun=7` (en fazla 14) verin. Sonuçtaki `taranmayan_rg_gunleri` doluysa bunu
+   kullanıcıya mutlaka söyleyin: o günlerin Resmî Gazete sayıları taranmadı.
 2. `son_degisiklikler` ile listele; önem seviyesi kural tabanlıdır (KRITIK/YUKSEK/ORTA/DUSUK).
 3. Bir kayıt için `degisiklik_detayi`, ayrıntılı analiz gerekiyorsa `mevzuat_metni` kullan.
 Analiz kuralları: yalnızca mevzuat metnine dayan; metinde olmayan hüküm, tarih veya fiyat uydurma;
@@ -54,7 +56,27 @@ açık hükümleri birebir alıntıyla, kendi yorumlarını ayrıca belirt; yür
 (araçların döndürdüğü 'basis' alanı: kesin / hesaplanan / belirsiz). Her yanıtta resmî kaynak bağlantısını ver.
 Bu bilgiler hukuki görüş veya yatırım tavsiyesi değildir."""
 
-server = MCPServer("enerji-mevzuat-takip", instructions=INSTRUCTIONS, version=__version__)
+
+
+def _instructions() -> str:
+    """Varsayılan (enerji) alan dışındaki bir profilde ilk satır o alanı ve gerçekten izlenen kaynakları söyler."""
+    try:
+        from .analysis.analyzer import load_profile
+        from .domain import Domain
+        from .sources.registry import load_source_definitions
+
+        settings = get_settings()
+        domain = Domain.from_profile(load_profile(settings))
+        if domain.is_default:
+            return INSTRUCTIONS
+        names = [d.get("name") for d in load_source_definitions(settings.sources_file) if d.get("enabled", True)]
+        first = f"Türkiye'de {domain.konu} mevzuatını takip eder. Kaynaklar: {', '.join(n for n in names if n)}."
+        return first + "\n" + INSTRUCTIONS.split("\n", 1)[1]
+    except Exception:  # yapılandırma okunamazsa sunucu yine açılsın
+        return INSTRUCTIONS
+
+
+server = MCPServer("enerji-mevzuat-takip", instructions=_instructions(), version=__version__)
 _ready = False
 
 
@@ -106,6 +128,26 @@ def _brief(c: RegulatoryChange) -> dict:
     }
 
 
+_trimmers: dict = {}
+
+
+def _clean_text(d: RegulatoryDocument) -> str:
+    """Belge metni; kaynakta menü kırpma ayarı varsa (EPDK, ETKB) eski kayıtlarda da menü ve alt bilgi atılır.
+    Kırpma eklenmeden önce saklanan metinlerde menü sözcükleri ("YEKDEM", "Lisanssız Üretim") her EPDK duyurusunu
+    aramaya sokuyor, `metin_basi` da yalnızca menüden oluşuyordu."""
+    text = d.full_text or ""
+    src = d.source
+    if not text or src is None or src.method != "html_listing":
+        return text
+    cfg = src.config or {}
+    if not (cfg.get("text_start_after") or cfg.get("text_end_before")):
+        return text
+    if src.key not in _trimmers:
+        from .sources.listing import HtmlListingAdapter
+        _trimmers[src.key] = HtmlListingAdapter(src.key, {k: v for k, v in cfg.items() if k != "_state"})
+    return _trimmers[src.key]._trim(text)
+
+
 def _doc_date(c: RegulatoryChange) -> date | None:
     d = c.document
     return d.rg_date or d.published_date or (c.first_detected_at.date() if c.first_detected_at else None)
@@ -119,7 +161,8 @@ def guncelle(zorla: bool = False, gecmis_gun: int = 0) -> dict:
     Args:
         zorla: Son 30 dakika içinde tarama yapılmışsa bile yeniden tara.
         gecmis_gun: Resmî Gazete'yi bugünden bu kadar gün geriye tara (en fazla 14). 0 = son taramadan bu yana.
-            Verilirse 30 dakika sınırı uygulanmaz. Hatayla biten taramalar sınırı başlatmaz.
+            Verilirse 30 dakika sınırı uygulanmaz. Hatayla biten taramalar sınırı başlatmaz. İlk taramada kurum
+            duyurularından da bu dönemde yayımlananlar getirilir (yoksa ilk taramadaki duyurular başlangıç sayılır).
     """
     _ensure_ready()
     settings = get_settings()
@@ -130,18 +173,29 @@ def guncelle(zorla: bool = False, gecmis_gun: int = 0) -> dict:
         if last and not zorla and not gecmis_gun and last.started_at > utcnow() - timedelta(minutes=MIN_RESCAN_MINUTES):
             return {"atlandi": True, "neden": f"Son tarama {MIN_RESCAN_MINUTES} dakikadan yeni",
                     "son_tarama": to_local(last.started_at, settings.timezone)}
+        baseline_since = None
         if gecmis_gun:
             days = max(1, min(int(gecmis_gun), settings.rg_max_backfill_days))
             rg = s.scalar(select(RegulatorySource).where(RegulatorySource.key == "resmi_gazete"))
-            target = today - timedelta(days=days)
+            # İmleç taranmış son gündür: "N gün geriye" = bugünden N gün öncesi de taranır
+            target = today - timedelta(days=days + 1)
+            baseline_since = today - timedelta(days=days)
             # İmleç yalnızca geriye alınır; ileri almak taranmamış günleri atlatırdı.
             if rg is not None and (not rg.cursor or date.fromisoformat(rg.cursor) > target):
                 rg.cursor = target.isoformat()
     started = utcnow()
-    result = _make_pipeline().run(run_type="tarama", trigger="mcp", send=False, today=today)
+    result = _make_pipeline().run(run_type="tarama", trigger="mcp", send=False, today=today,
+                                  baseline_since=baseline_since)
     with session_scope() as s:
         new = s.scalars(select(RegulatoryChange).where(RegulatoryChange.first_detected_at >= started)).all()
         briefs = sorted((_brief(c) for c in new), key=lambda b: -LEVEL_ORDER.index(b["onem"]) if b["onem"] in LEVEL_ORDER else 0)
+        run = s.get(ScanRun, result.run_id) if result.run_id else None
+        skipped = ((run.coverage or {}).get("resmi_gazete") or {}).get("atlanan", []) if run else []
+    extra = {}
+    if skipped:
+        extra = {"taranmayan_rg_gunleri": skipped,
+                 "taranmayan_not": (f"Son taramadan bu yana {settings.rg_max_backfill_days} günden fazla geçti; bu günlerin "
+                                    "Resmî Gazete sayıları taranmadı ve sonradan otomatik taranmaz. Kullanıcıya bildirin.")}
     return {
         "durum": result.status,
         "tam_tarama": result.complete,
@@ -151,6 +205,7 @@ def guncelle(zorla: bool = False, gecmis_gun: int = 0) -> dict:
         "uyarilar": result.warnings[:10],
         "hatalar": result.errors[:10],
         "not": "Önem seviyeleri kural tabanlıdır; ayrıntı için degisiklik_detayi/mevzuat_metni kullanın.",
+        **extra,
     }
 
 
@@ -202,12 +257,13 @@ def ara(sorgu: str, gun: int = 365, limit: int = 20) -> dict:
             if (_doc_date(c) or date.min) < since:
                 continue
             title = normalize_for_match(c.document.title)
-            text = normalize_for_match(c.document.full_text or "")
+            clean = _clean_text(c.document)
+            text = normalize_for_match(clean)
             pos = text.find(q)
             if q in title or pos >= 0:
                 item = _brief(c)
                 if pos >= 0:
-                    raw = " ".join((c.document.full_text or "").split())
+                    raw = " ".join(clean.split())
                     item["eslesen_bolum"] = raw[max(0, pos - 150): pos + len(sorgu) + 150]
                 hits.append(item)
         hits.sort(key=lambda h: h["yayim_tarihi"] or "", reverse=True)
@@ -233,7 +289,7 @@ def degisiklik_detayi(degisiklik_id: str) -> dict:
             raise ToolError(f"Kayıt bulunamadı: {degisiklik_id}")
         d = c.document
         analysis = c.latest_valid_analysis
-        text = d.full_text or ""
+        text = _clean_text(d)
         return {
             **_brief(c),
             "degistirilen_mevzuat": c.amended_regulation,
@@ -263,11 +319,12 @@ def mevzuat_metni(degisiklik_id: str, baslangic: int = 0, uzunluk: int = 15000) 
     """
     _ensure_ready()
     uzunluk = max(1000, min(int(uzunluk), 40000))
+    baslangic = max(0, int(baslangic))
     with session_scope() as s:
         c = s.get(RegulatoryChange, degisiklik_id)
         if c is None:
             raise ToolError(f"Kayıt bulunamadı: {degisiklik_id}")
-        text = c.document.full_text or ""
+        text = _clean_text(c.document)
         part = text[baslangic: baslangic + uzunluk]
         nxt = baslangic + uzunluk
         return {"id": c.id, "baslik": c.document.title, "url": c.document.url, "toplam_uzunluk": len(text),

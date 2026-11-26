@@ -143,7 +143,7 @@ class ChangeDetectionEngine:
         self.triage = triage
 
     def process(self, source: RegulatorySource, adapter: SourceAdapter, docs: list[FetchedDocument],
-                *, baseline: bool = False) -> DetectionStats:
+                *, baseline: bool = False, baseline_since=None) -> DetectionStats:
         stats = DetectionStats()
         seen_keys: set[str] = set()
         for fd in docs:
@@ -161,7 +161,9 @@ class ChangeDetectionEngine:
             # Her belge kendi işlemiyle kaydedilir: bir belgedeki hata öncekileri geri almaz,
             # sonrakilerin işlenmesini de engellemez.
             try:
-                self._process_new(source, adapter, fd, key, baseline, stats)
+                is_baseline = baseline and not (baseline_since and fd.published_date
+                                                and fd.published_date >= baseline_since)
+                self._process_new(source, adapter, fd, key, is_baseline, stats)
                 self.session.commit()
             except Exception as exc:
                 log.exception("Belge işlenemedi: %s", fd.url)

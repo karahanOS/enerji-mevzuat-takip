@@ -171,7 +171,10 @@ class Pipeline:
 
     # ---- ana giriş -----------------------------------------------------------
     def run(self, *, run_type: str = "gunluk", trigger: str = "zamanlanmis", send: bool = True,
-            today: date | None = None) -> RunResult:
+            today: date | None = None, baseline_since: date | None = None) -> RunResult:
+        """baseline_since: kurum listelerinin ilk taramasında bu tarihten sonra yayımlananlar başlangıç sayılmaz
+        (MCP'de "son N günü getir" denince kurum duyuruları da gelsin)."""
+        self._baseline_since = baseline_since
         setup_logging(self.settings)
         result = RunResult()
         try:
@@ -243,7 +246,8 @@ class Pipeline:
             warnings.extend(f"{source.name}: {w}" for w in outcome.warnings)
 
             baseline = source.method in ("html_listing", "rss", "epdk_kararlar") and not source.baseline_done
-            stats = engine.process(source, build_adapter(source), outcome.documents, baseline=baseline)
+            stats = engine.process(source, build_adapter(source), outcome.documents, baseline=baseline,
+                                   baseline_since=getattr(self, "_baseline_since", None))
             if baseline and outcome.complete:
                 source.baseline_done = True
             for err in stats.errors:
