@@ -18,10 +18,10 @@ Notlar:
 {% for w in warnings %}  - {{ w }}
 {% endfor %}
 {% endif %}
-{% if total == 0 and routine_count == 0 %}
-{% if is_complete %}Bu tarama döneminde {{ domain.konu }} ile ilgili yeni bir düzenleme tespit edilmedi.{% else %}Taranabilen kaynaklarda yeni düzenleme bulunmadı; tarama eksik olduğundan bu sonuç kesin değildir.{% endif %}
+{% if compacted %}Not: E-posta boyut sınırını aşmaması için bazı listeler ve madde metinleri kısaltıldı; tam rapor veri dalında (raporlar/).
 
-Taranan belge: {{ docs_scanned }} · İlgisiz bulunan: {{ docs_filtered }} · Analiz dışı: {{ docs_skipped }}
+{% endif %}{% if total == 0 and routine_count == 0 %}
+{% if is_complete %}Bu tarama döneminde {{ domain.konu }} ile ilgili yeni bir düzenleme tespit edilmedi.{% else %}Taranabilen kaynaklarda yeni düzenleme bulunmadı; tarama eksik olduğundan bu sonuç kesin değildir.{% endif %}
 {% endif %}
 {% for it in items %}
 {% if it.is_update and (loop.first or not loop.previtem.is_update) %}
@@ -75,6 +75,8 @@ Eskiden / Şimdi
     Önceki: {{ p.eski or (p.eski_not or 'Alınamadı') }}
     Yeni:   {{ p.yeni or '—' }}
 {% endfor %}
+{% if it.pairs_hidden %}  ({{ it.pairs_hidden }} maddenin metni e-posta boyutu için gösterilmedi)
+{% endif %}
 {% if it.previous_source %}  Önceki metin kaynağı: {{ it.previous_source }}
 {% endif %}{% if it.consolidated_url %}  Konsolide metin: {{ it.consolidated_url }}
 {% endif %}
@@ -143,18 +145,18 @@ KAYNAK DURUMU
 Taranan belge: {{ docs_scanned }} · İlgisiz bulunan: {{ docs_filtered }} · Analiz dışı: {{ docs_skipped }}{% if ai_usage %} · Bugünkü AI çağrısı: {{ ai_usage }}{% endif %}
 
 {% endif %}
-{% if excluded.irrelevant or excluded.skipped or excluded.skipped_relevant %}
+{% if excluded.irrelevant_total or excluded.skipped_total or excluded.skipped_relevant_total %}
 
 KONTROL İÇİN: ELENEN BELGELER (bu taramada ilk kez görülenler)
-{% for key, label in (("skipped_relevant", "ANALİZ DIŞI BIRAKILDI ama {{ domain.konu_kisa }} ilgili görünüyor — lütfen kontrol edin"), ("irrelevant", "İlgisiz bulundu"), ("skipped", "Analiz dışı (ilan vb.)")) %}
-{% if excluded[key] %}
+{% for key, label in (("skipped_relevant", "ANALİZ DIŞI BIRAKILDI ama " ~ domain.konu_kisa ~ " ilgili görünüyor — lütfen kontrol edin"), ("irrelevant", "İlgisiz bulundu"), ("skipped", "Analiz dışı (ilan vb.)")) %}
+{% if excluded[key] or excluded[key ~ "_total"] %}
 
 {{ label }} ({{ excluded[key ~ "_total"] }})
 {% for d in excluded[key] %}  - {{ d.title }} — {{ d.source }}{% if d.date %}, {{ d.date }}{% endif %}{% if d.reason and key == "irrelevant" %} · {{ d.reason }}{% elif d.section %} · {{ d.section }}{% endif %}{% if d.keywords %} · eşleşen: {{ d.keywords|join(", ") }}{% endif %}
 
     {{ d.url }}
 {% endfor %}
-{% if excluded[key ~ "_total"] > excluded[key]|length %}  … ve {{ excluded[key ~ "_total"] - excluded[key]|length }} belge daha
+{% if excluded[key ~ "_total"] > excluded[key]|length %}  {% if excluded[key] %}… ve {{ excluded[key ~ "_total"] - excluded[key]|length }} belge daha{% else %}Liste e-postada gösterilmedi{% endif %}{% if compacted %} (e-posta boyutu sınırı; tam liste veri dalındaki rapor kopyasında){% endif %}
 {% endif %}
 {% endif %}
 {% endfor %}
