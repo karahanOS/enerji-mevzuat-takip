@@ -86,6 +86,13 @@ def grounding_check(result: AnalysisResult, text: str, published: date | None, r
     return issues
 
 
+
+MIN_TEXT_LETTERS = 150
+
+
+def _letter_count(text: str) -> int:
+    return sum(ch.isalpha() for ch in text)
+
 class RegulatoryAnalyzer:
     def __init__(self, session: Session, analysis_chain: LLMChain | None, settings: Settings, profile: dict,
                  triage_chain: LLMChain | None = None):
@@ -120,6 +127,12 @@ class RegulatoryAnalyzer:
         if not doc.full_text:
             change.status = "inceleme"
             self._add_reason(change, "Mevzuat metni alınamadığı için AI analizi yapılmadı (eksik belgeden sonuç çıkarılmaz)")
+            change.needs_review = True
+            return None
+        if _letter_count(doc.full_text) < MIN_TEXT_LETTERS:
+            # Ör. yazı tipi kodlaması bozuk PDF: metin "var" ama okunabilir harf yok; AI'dan boş analiz döner
+            change.status = "inceleme"
+            self._add_reason(change, "Mevzuat metni okunamadı (çok kısa ya da bozuk karakterler); AI analizi yapılmadı")
             change.needs_review = True
             return None
 
