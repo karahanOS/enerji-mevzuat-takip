@@ -199,3 +199,57 @@ def test_stdio_sunucusu_baslar_ve_araclari_listeler(tmp_path):
 
     asyncio.run(scenario())
     assert (tmp_path / "data" / "enerji_takip.db").is_file()
+
+
+def test_eski_kayit_metni_menuden_arindirilir(mcp_env):
+    """Kırpma ayarı sonradan eklenen kaynağın eski kayıtlarında menü sözcükleri aramaya girmez."""
+    from types import SimpleNamespace
+
+    src = SimpleNamespace(key="epdk_x", method="html_listing",
+                          config={"text_start_after": "BAŞLIK", "text_end_before": "ALTBİLGİ"})
+    doc = SimpleNamespace(full_text="Menü YEKDEM Lisanssız Üretim BAŞLIK Asıl duyuru metni ALTBİLGİ iletişim", source=src)
+    ms._trimmers.clear()
+    out = ms._clean_text(doc)
+    assert "Asıl duyuru metni" in out and "YEKDEM" not in out and "iletişim" not in out
+    plain = SimpleNamespace(full_text="metin", source=SimpleNamespace(key="rg", method="resmi_gazete", config={}))
+    assert ms._clean_text(plain) == "metin"
+
+
+def test_gecmis_gun_imleci_bugunden_n_gun_oncesini_de_tarar(mcp_env, monkeypatch):
+    from enerji_takip.models import RegulatorySource
+
+    seen = {}
+    real = ms._make_pipeline
+
+    def spy():
+        p = real()
+        orig = p.run
+
+        def run(**kw):
+            with session_scope() as s:
+                rg = s.scalar(select(RegulatorySource).where(RegulatorySource.key == "resmi_gazete"))
+                seen["cursor"] = rg.cursor
+            seen["baseline_since"] = kw.get("baseline_since")
+            return orig(**kw)
+
+        p.run = run
+        return p
+
+    monkeypatch.setattr(ms, "_make_pipeline", spy)
+    ms.guncelle(gecmis_gun=3)
+    assert seen["baseline_since"] == date(2026, 10, 20)
+    assert seen["cursor"] == "2026-10-19"
+
+
+def test_uzun_aradan_sonra_taranmayan_rg_gunleri_bildirilir(mcp_env):
+    from enerji_takip.models import RegulatorySource
+
+    ms.guncelle()
+    with session_scope() as s:
+        rg = s.scalar(select(RegulatorySource).where(RegulatorySource.key == "resmi_gazete"))
+        rg.cursor = "2026-09-20"
+        for r in s.scalars(select(ScanRun)).all():
+            r.status = "basarisiz"  # 30 dk sınırını kaldır
+    out = ms.guncelle()
+    assert out["taranmayan_rg_gunleri"] and "2026-09-21" in out["taranmayan_rg_gunleri"]
+    assert "Kullanıcıya bildirin" in out["taranmayan_not"]
