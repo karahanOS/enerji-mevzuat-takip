@@ -1,6 +1,7 @@
 """E-posta rapor üreticisi: bildirilmemiş değişiklikleri toplar, Türkçe HTML + düz metin rapor oluşturur."""
 from __future__ import annotations
 
+import quopri
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -323,9 +324,47 @@ def _disclaimer(domain: Domain) -> str:
     return DISCLAIMER.replace("kişisel kullanım için ", "").replace("veya yatırım tavsiyesi ", "")
 
 
+GMAIL_CLIP_BYTES = 102_000  # Gmail, HTML gövdesi bundan büyük e-postayı "[İleti kırpıldı]" diye keser
+
+
+def _mail_size(html: str) -> int:
+    """HTML'in e-postada kapladığı boyut (quoted-printable; Türkçe karakterler 2 bayttan 6 bayta çıkar)."""
+    return len(quopri.encodestring(html.encode("utf-8")))
+
+
+def _compact_steps():
+    """Boyut sınırı aşılırsa sırayla uygulanır; her adım bilgiyi biraz daha azaltır, kayıtların kendisini atmaz."""
+    def ilanlar(ctx):  # analiz dışı ilanlar her gün aynı türden; yalnızca sayısı kalır
+        ctx["excluded"]["skipped"] = []
+
+    def elenenler_30(ctx):
+        ctx["excluded"]["irrelevant"] = ctx["excluded"]["irrelevant"][:30]
+
+    def madde_metinleri_kisa(ctx):
+        for it in ctx["items"]:
+            for p in it.get("pairs") or []:
+                p["eski"], p["yeni"] = _short(p.get("eski"), 250), _short(p.get("yeni"), 250)
+            if len(it.get("pairs") or []) > 5:
+                it["pairs_hidden"] = len(it["pairs"]) - 5
+                it["pairs"] = it["pairs"][:5]
+            if len(it.get("articles") or []) > 15:
+                it["articles"] = it["articles"][:15] + [f"… ve {len(it['articles']) - 15} madde daha"]
+
+    def elenenler_yok(ctx):
+        ctx["excluded"]["irrelevant"] = []
+
+    def madde_metinleri_yok(ctx):
+        for it in ctx["items"]:
+            if it.get("pairs"):
+                it["pairs_hidden"] = it.get("pairs_hidden", 0) + len(it["pairs"])
+                it["pairs"] = []
+
+    return [ilanlar, elenenler_30, madde_metinleri_kisa, elenenler_yok, madde_metinleri_yok]
+
+
 def build_report(session: Session, inp: ReportInput, changes: list[RegulatoryChange], taxonomy: Taxonomy,
                  tz: str, domain: Domain | None = None,
-                 updates: list[RegulatoryChange] | None = None) -> EmailReport:
+                 updates: list[RegulatoryChange] | None = None, max_html_bytes: int = 0) -> EmailReport:
     domain = domain or DEFAULT_DOMAIN
     updates = [u for u in (updates or []) if u not in changes]
     main = [c for c in changes if c.status != "rutin"]
@@ -371,7 +410,18 @@ def build_report(session: Session, inp: ReportInput, changes: list[RegulatoryCha
         "domain": domain,
         "level_colors": LEVEL_COLORS,
     }
+    ctx["compacted"] = False
     html = _env.get_template("report.html.j2").render(**ctx)
+    full_html = html
+    if max_html_bytes and _mail_size(html) > max_html_bytes:
+        # Gmail sınırını aşmasın: e-postadaki listeler kısaltılır; tam hâl rapor kopyasına (veri dalı) yazılır
+        ctx["excluded"] = {k: (list(v) if isinstance(v, list) else v) for k, v in ctx["excluded"].items()}
+        ctx["compacted"] = True
+        for step in _compact_steps():
+            step(ctx)
+            html = _env.get_template("report.html.j2").render(**ctx)
+            if _mail_size(html) <= max_html_bytes:
+                break
     text = _env.get_template("report.txt.j2").render(**ctx)
     report = EmailReport(
         report_type=inp.report_type,
@@ -386,6 +436,7 @@ def build_report(session: Session, inp: ReportInput, changes: list[RegulatoryCha
         high_count=counts["YUKSEK"],
         is_complete=inp.is_complete,
     )
+    report.full_html = full_html  # veri tabanına yazılmaz; rapor kopyası için
     session.add(report)
     session.flush()
     for c in list(changes) + updates:

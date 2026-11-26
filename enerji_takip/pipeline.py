@@ -519,14 +519,14 @@ class Pipeline:
                       f" / {self.settings.llm_daily_max_calls}") if self.analysis_chain else "AI kapalı",
         )
         report = build_report(session, inp, changes, self.taxonomy, self.settings.timezone, self.domain,
-                              updates=updates)
+                              updates=updates, max_html_bytes=self.settings.report_max_html_bytes)
         report.scan_run_id = run.id
         session.commit()
         result.report_id = report.id
         result.report_subject = report.subject
         preview_dir = self.settings.report_preview_dir
         preview_dir.mkdir(parents=True, exist_ok=True)
-        (preview_dir / f"{today.isoformat()}_{run_type}_{report.id[:8]}.html").write_text(report.html_body, encoding="utf-8")
+        (preview_dir / f"{today.isoformat()}_{run_type}_{report.id[:8]}.html").write_text(getattr(report, "full_html", None) or report.html_body, encoding="utf-8")
         for old_file in sorted(preview_dir.glob("*.html"))[:-max(1, self.settings.report_keep)]:
             old_file.unlink(missing_ok=True)  # en eski önizlemeleri temizle
 

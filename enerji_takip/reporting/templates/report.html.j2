@@ -37,11 +37,18 @@
 </td></tr>
 {% endif %}
 
+{% if compacted %}
+<tr><td style="padding:8px 28px;">
+  <div style="border:1px solid #e4e7ec;background:#f9fafb;border-radius:6px;padding:8px 12px;font-size:12.5px;line-height:1.5;color:#475467;">
+    E-posta boyut sınırını aşmaması için bazı listeler ve madde metinleri kısaltıldı. Tam rapor, GitHub'da <code>veri</code> dalındaki <code>raporlar/</code> klasöründe.
+  </div>
+</td></tr>
+{% endif %}
+
 {% if total == 0 and routine_count == 0 %}
 <tr><td style="padding:12px 28px;">
   <div style="border:1px solid #abefc6;background:#ecfdf3;border-radius:6px;padding:12px 14px;font-size:14px;line-height:1.55;">
     {% if is_complete %}Bu tarama döneminde {{ domain.konu }} ile ilgili yeni bir düzenleme tespit edilmedi.{% else %}Taranabilen kaynaklarda yeni bir düzenleme bulunmadı; ancak tarama eksik olduğundan bu sonuç kesin değildir.{% endif %}
-    Taranan belge: {{ docs_scanned }} · İlgisiz bulunan: {{ docs_filtered }} · Analiz dışı (ilan vb.): {{ docs_skipped }}
   </div>
 </td></tr>
 {% endif %}
@@ -108,6 +115,7 @@
       {% endfor %}
     </table>
     {% endif %}
+    {% if it.pairs_hidden %}<div style="font-size:11.5px;color:#667085;margin-top:4px;">{{ it.pairs_hidden }} maddenin metni e-posta boyutu için gösterilmedi.</div>{% endif %}
     {% if it.previous_source or it.consolidated_url %}<div style="font-size:11.5px;color:#667085;margin-top:4px;">{% if it.previous_source %}Önceki metin kaynağı: {{ it.previous_source }}.{% endif %}{% if it.consolidated_url %} <a href="{{ it.consolidated_url }}" style="color:#175cd3;">Konsolide metin</a>{% endif %}</div>{% endif %}
     {% endif %}
 
@@ -188,23 +196,23 @@
 </td></tr>
 {% endif %}
 
-{% if excluded.irrelevant or excluded.skipped or excluded.skipped_relevant %}
+{% if excluded.irrelevant_total or excluded.skipped_total or excluded.skipped_relevant_total %}
 <tr><td style="padding:18px 28px 6px 28px;">
   <h3 style="font-size:14px;margin:0 0 4px 0;">Kontrol için: elenen belgeler</h3>
   <p style="font-size:12px;color:#667085;margin:0 0 8px 0;">Bu taramada ilk kez görülen ve analiz edilmeyen belgeler. Yanlışlıkla elenmiş ilgili bir düzenleme görürseniz bağlantıdan açıp kontrol edin.</p>
-  {% for key, label in (("skipped_relevant", "Analiz dışı bırakıldı ama {{ domain.konu_kisa }} ilgili görünüyor — lütfen kontrol edin"), ("irrelevant", "İlgisiz bulundu"), ("skipped", "Analiz dışı (ilan vb.)")) %}
+  {% for key, label in (("skipped_relevant", "Analiz dışı bırakıldı ama " ~ domain.konu_kisa ~ " ilgili görünüyor — lütfen kontrol edin"), ("irrelevant", "İlgisiz bulundu"), ("skipped", "Analiz dışı (ilan vb.)")) %}
   {% set docs = excluded[key] %}
-  {% if docs %}
+  {% if docs or excluded[key ~ "_total"] %}
   <p style="font-size:12.5px;font-weight:600;margin:10px 0 4px 0;{% if key == 'skipped_relevant' %}color:#b54708;{% endif %}">{{ label }} ({{ excluded[key ~ "_total"] }})</p>
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:12px;line-height:1.45;border-collapse:collapse;">
+  {% if docs %}<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:12px;line-height:1.45;border-collapse:collapse;">
     {% for d in docs %}
     <tr><td style="padding:4px 6px;border-bottom:1px solid #f2f4f7;vertical-align:top;">
       <a href="{{ d.url }}" style="color:#175cd3;">{{ d.title }}</a>
       <span style="color:#667085;"> — {{ d.source }}{% if d.date %}, {{ d.date }}{% endif %}{% if d.reason and key == "irrelevant" %} · {{ d.reason }}{% elif d.section %} · {{ d.section }}{% endif %}{% if d.keywords %} · eşleşen: {{ d.keywords|join(", ") }}{% endif %}</span>
     </td></tr>
     {% endfor %}
-  </table>
-  {% if excluded[key ~ "_total"] > docs|length %}<p style="font-size:12px;color:#667085;margin:4px 0 0 0;">… ve {{ excluded[key ~ "_total"] - docs|length }} belge daha (listeyi uzatmak için REPORT_EXCLUDED_MAX).</p>{% endif %}
+  </table>{% endif %}
+  {% if excluded[key ~ "_total"] > docs|length %}<p style="font-size:12px;color:#667085;margin:4px 0 0 0;">{% if docs %}… ve {{ excluded[key ~ "_total"] - docs|length }} belge daha{% else %}Liste e-postada gösterilmedi{% endif %}{% if compacted %} (e-posta boyutu sınırı; tam liste <code>veri</code> dalındaki rapor kopyasında).{% else %} (listeyi uzatmak için REPORT_EXCLUDED_MAX).{% endif %}</p>{% endif %}
   {% endif %}
   {% endfor %}
 </td></tr>
